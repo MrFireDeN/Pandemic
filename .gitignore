@@ -1,0 +1,26 @@
+# Virtual environment
+.env/
+venv/
+env/
+
+# Byte-compiled Python files
+__pycache__/
+*.pyc
+
+# IDE specific files
+.idea/
+.vscode/
+
+# Database files
+*.db
+*.sqlite
+instance/
+
+# Log files
+*.log
+
+# Uploaded files (if applicable)
+/uploads/
+
+# Configuration files (if they contain sensitive data)
+config.pyc
