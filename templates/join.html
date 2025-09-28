@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Join — Pandemic{% endblock %}
+{% block content %}
+    <section id="join" class="join-layout">
+        <div id="join-app">
+            <div v-if="!connected">
+                <label>Код комнаты</label>
+                <input v-model="code" placeholder="Напр. A1B2" />
+                <label>Ник</label>
+                <input v-model="name" placeholder="Player" />
+                <button @click="connect">Подключиться</button>
+            </div>
+
+            <div v-else>
+                <p>Вы подключены к комнате {{ code }} как {{ name }}</p>
+                <button @click="sendAction('ready')">Готов</button>
+            </div>
+        </div>
+    </section>
+{% endblock %}
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/common/socket.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/join.js') }}"></script>
+{% endblock %}
