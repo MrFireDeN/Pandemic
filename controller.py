@@ -1,8 +1,12 @@
 ﻿from flask import Blueprint, jsonify, request
+
+from data.cities import City
 from eng import db, socketio
-from models import GameSession, Player
+from models import GameSession, Player, MoveLog, Cites, cities_connections, Player, roles
 from flask_socketio import emit, join_room
 import secrets
+
+from game import SESSIONS, PandemicGame
 
 from typing import Any, Dict
 
@@ -15,32 +19,87 @@ def health():
 @api.post("/host/create")
 def host_create():
     code = secrets.token_hex(2).upper()
-    print(code)
+
     session = GameSession(code=code, status="waiting")
     db.session.add(session)
-    # db.session.commit()
+    db.session.commit()
 
-    return jsonify({"code": code})
+    game = SESSIONS.create_session(code, db)
+
+    return jsonify({
+        "status": "ok",
+        "code": code,
+        "phase": game.state["phase"],
+    })
 
 @socketio.on("host_join")
 def on_host_join(data):
     code = data.get("code")
     join_room(code)
-    emit("host_ready", {"code": code}, to=code)
+
+    # Проверяем, есть ли такая сессия
+    game = SESSIONS.get_session(code)
+    if not game:
+        emit("error", {"message": f"Session {code} not found"})
+        return
+
+    join_room(code)
+    emit("host_ready", {"code": code, "players": [p.name for p in game.Player]}, to=code)
 
 @socketio.on("player_join")
 def on_player_join(data):
     code = data.get("code")
-    name = data.get("name")
-    player = Player(name=name, session_code=code)
-    db.session.add(player)
+    player_name = data.get("name")
+    role_name = data.get("role")
+
+    # Проверяем сессию
+    game = SESSIONS.get_session(code)
+    if not game:
+        emit("error", {"message": f"Session {code} not found"})
+        return
+
+    # Получаем роль
+    role = db.session.query(roles).filter_by(name=role_name).first()
+    if not role:
+        emit("error", {"message": f"Role '{role_name}' not found"})
+        return
+
+    # Определяем стартовый город
+    start_city_name = game.get_start_city()
+    start_city = db.session.query(City).filter_by(name=start_city_name).first()
+    if not start_city:
+        emit("error", {"message": f"Start city '{start_city_name}' not found"})
+        return
+
+    # Добавляем игрока в БД
+    db_player = Player(
+        name=player_name,
+        role_id=role.id,
+        position_city_id=start_city.id
+    )
+    db.session.add(db_player)
     db.session.commit()
+
+    # Добавляем игрока в память
+    game.players.append(db_player)
+    game.commit_to_db()
+
     join_room(code)
-    emit("player_joined", {"name": name}, to=code)
+    emit("player_joined", {"name": player_name}, to=code)
 
 @socketio.on("start_game")
 def on_start_game(data):
     code = data.get("code")
+
+    game = SESSIONS.get_session(code)
+    if not game:
+        emit("error", {"message": f"Session {code} not found"})
+        return
+
+    # Меняем состояние
+    game.state["phase"] = "playing"
+    game.commit_to_db()
+
     emit("game_started", {}, to=code)
 
 # ------------------------------
@@ -49,19 +108,44 @@ def on_start_game(data):
 
 @api.post("/player/move")
 def post_player_move() -> Any:
-    pass
-    """Move a pawn from one city to another.
+    data = request.get_json()
 
-    Expected JSON:
-    {
-    "game_id": str,
-    "player_id": str,
-    "from_city": str, # current location (optional if server tracks)
-    "to_city": str,
-    "card_id": str | null, # optional; client may omit per "soft rules"
-    "transport": str | null # e.g., "drive", "direct", "charter", "shuttle"
-    }
-    """
+    player_id = data.get("player_id")
+    to_city_name = data.get("to_city")
+    transport = data.get("transport", "drive")
+
+    # Проверяем игрока и целевой город
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({"error": "Player not found"}), 404
+
+    to_city = Cites.query.filter_by(name=to_city_name).first()
+    if not to_city:
+        return jsonify({"error": "Destination city not found"}), 404
+
+    # Получаем текущий город игрока
+    from_city_id = player.position_city_id
+
+    player.position_city_id = to_city.id
+    player.actions_left = max(player.actions_left - 1, 0)
+
+    # Логируем ход
+    log_entry = MoveLog(
+        session_code="TEST_SESSION",  # пока заглушка, потом возьмём из GameSession
+        payload=f"Player {player.name} moved from {from_city_id} to {to_city.id} using {transport}"
+    )
+
+    db.session.add(log_entry)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Player moved successfully",
+        "player_id": player.id,
+        "from_city": from_city_id,
+        "to_city": to_city.id,
+        "transport": transport,
+        "actions_left": player.actions_left
+    })
 
 @api.post("/player/use-event")
 def post_player_use_event() -> Any:
@@ -159,8 +243,49 @@ def post_player_end_action() -> Any:
 NAMESPACE = "/game"
 
 @socketio.on("player:move", namespace=NAMESPACE)
-def sio_player_move(data: Dict[str, Any]) -> None:
-    pass
+def sio_player_move(data) -> None:
+    """Handle real-time player movement."""
+    player_id = data.get("player_id")
+    to_city_name = data.get("to_city")
+    transport = data.get("transport", "drive")
+    card_id = data.get("card_id")
+
+    player = Player.query.get(player_id)
+    if not player:
+        emit("error", {"error": "Player not found"}, namespace=NAMESPACE)
+        return
+
+    to_city = Cites.query.filter_by(name=to_city_name).first()
+    if not to_city:
+        emit("error", {"error": "Destination city not found"}, namespace=NAMESPACE)
+        return
+
+    from_city_id = player.position_city_id
+
+    player.position_city_id = to_city.id
+    player.actions_left = max(player.actions_left - 1, 0)
+
+    session_code = getattr(player, "session_code", "TEST_SESSION")
+
+    log_entry = MoveLog(
+        session_code=session_code,
+        payload=f"Player {player.name} moved from {from_city_id} to {to_city.id} using {transport}"
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+
+    emit(
+        "player:moved",
+        {
+            "player_id": player.id,
+            "from_city": from_city_id,
+            "to_city": to_city.id,
+            "transport": transport,
+            "actions_left": player.actions_left,
+        },
+        room=session_code,
+        namespace=NAMESPACE,
+    )
 
 @socketio.on("player:use_event", namespace=NAMESPACE)
 def sio_player_use_event(data: Dict[str, Any]) -> None:

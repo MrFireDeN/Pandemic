@@ -5,11 +5,6 @@ class GameSession(db.Model):
     code = db.Column(db.String(16), unique=True, nullable=False, index=True)
     status = db.Column(db.String(32), default="waiting")  # waiting/active/finished
 
-class Player(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(64), nullable=False)
-    session_code = db.Column(db.String(16), db.ForeignKey("game_session.code"), index=True)
-
 
 class MoveLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,13 +40,21 @@ class roles(db.Model):
     name = db.Column(db.String(64), nullable=False)
     description = db.Column(db.Text, nullable=False)
 
-class players(db.Model):
+class Player(db.Model):
+    __tablename__ = "players"
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), nullable=False)
+
     role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=False)
     position_city_id = db.Column(db.Integer, db.ForeignKey("cities.id"), nullable=False)
-    player_cards = db.Column(db.Integer, nullable=False)
-    actions_left = db.Column(db.Integer, nullable=False)
+    desk_id = db.Column(db.Integer, db.ForeignKey("cards_in_desk.id"), nullable=False)
+
+    actions_left = db.Column(db.Integer, default=4)
+
+    role = db.relationship("roles", backref="players")
+    position_city = db.relationship("Cites", backref="players")
+    desk = db.relationship("cards_in_desk", backref="players")
 
 class vaccines(db.Model):
     id = db.Column(db.Integer, primary_key=True)
