@@ -114,38 +114,44 @@ def post_player_move() -> Any:
     to_city_name = data.get("to_city")
     transport = data.get("transport", "drive")
 
+    if not all([player_id, to_city_name]):
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+    
     # Проверяем игрока и целевой город
     player = Player.query.get(player_id)
     if not player:
         return jsonify({"error": "Player not found"}), 404
 
-    to_city = Cites.query.filter_by(name=to_city_name).first()
-    if not to_city:
-        return jsonify({"error": "Destination city not found"}), 404
+    new_city = Cites.query.filter_by(name=to_city_name).first()
+    if not new_city:
+        return jsonify({"status": "error", "message": "City not found"}), 404
 
-    # Получаем текущий город игрока
-    from_city_id = player.position_city_id
+    game = SESSIONS.get_session(player.session_code)
+    if not game:
+        return jsonify({"status": "error", "message": f"Session {player.session_code} not found"}), 404
 
-    player.position_city_id = to_city.id
-    player.actions_left = max(player.actions_left - 1, 0)
+    try:
+        result = game.move(player, to_city_name, transport)
 
-    # Логируем ход
-    log_entry = MoveLog(
-        session_code="TEST_SESSION",  # пока заглушка, потом возьмём из GameSession
-        payload=f"Player {player.name} moved from {from_city_id} to {to_city.id} using {transport}"
-    )
+        if result == 200:
+            notify_player_moved(player.session_code, player, to_city_name)
+            return jsonify({
+                "status": "ok",
+                "player_id": player.id,
+                "new_city": to_city_name,
+                "actions_left": player.actions_left
+            }), 200
+        elif result == 403:
+            return jsonify({"status": "error", "message": "Move not allowed"}), 403
+        elif result == 404:
+            return jsonify({"status": "error", "message": "Invalid city"}), 404
+        else:
+            return jsonify({"status": "error", "message": "Internal error"}), 500
 
-    db.session.add(log_entry)
-    db.session.commit()
-
-    return jsonify({
-        "message": "Player moved successfully",
-        "player_id": player.id,
-        "from_city": from_city_id,
-        "to_city": to_city.id,
-        "transport": transport,
-        "actions_left": player.actions_left
-    })
+    except Exception as e:
+        db.session.rollback()
+        print(f"[MoveError] {e}")
+        return jsonify({"status": "error", "message": "Database error"}), 500
 
 @api.post("/player/use-event")
 def post_player_use_event() -> Any:
@@ -245,47 +251,37 @@ NAMESPACE = "/game"
 @socketio.on("player:move", namespace=NAMESPACE)
 def sio_player_move(data) -> None:
     """Handle real-time player movement."""
+    code = data.get("game_code")
     player_id = data.get("player_id")
     to_city_name = data.get("to_city")
     transport = data.get("transport", "drive")
     card_id = data.get("card_id")
 
-    player = Player.query.get(player_id)
+    if not all([code, player_id, to_city_name]):
+        emit("player:move:error", {"message": "Missing required fields"}, room=request.sid)
+        return
+    
+    player = db.session.query(Player).filter_by(id=player_id).first()
     if not player:
-        emit("error", {"error": "Player not found"}, namespace=NAMESPACE)
+        emit("player:move:error", {"message": "Player not found"}, room=request.sid)
         return
 
-    to_city = Cites.query.filter_by(name=to_city_name).first()
-    if not to_city:
-        emit("error", {"error": "Destination city not found"}, namespace=NAMESPACE)
+    game = SESSIONS.get_session(code)
+    if not game:
+        emit("player:move:error", {"message": f"Session {code} not found"}, room=request.sid)
         return
 
-    from_city_id = player.position_city_id
+    status = game.move(player, to_city_name, transport, card_id)
 
-    player.position_city_id = to_city.id
-    player.actions_left = max(player.actions_left - 1, 0)
-
-    session_code = getattr(player, "session_code", "TEST_SESSION")
-
-    log_entry = MoveLog(
-        session_code=session_code,
-        payload=f"Player {player.name} moved from {from_city_id} to {to_city.id} using {transport}"
-    )
-    db.session.add(log_entry)
-    db.session.commit()
-
-    emit(
-        "player:moved",
-        {
-            "player_id": player.id,
-            "from_city": from_city_id,
-            "to_city": to_city.id,
-            "transport": transport,
-            "actions_left": player.actions_left,
-        },
-        room=session_code,
-        namespace=NAMESPACE,
-    )
+    if status == 200:
+        emit("player:moved", {"player_id": player.id, "new_city": to_city_name}, room=code)
+    elif status == 403:
+        emit("player:move:error", {"message": "Move not allowed"}, room=request.sid)
+    elif status == 404:
+        emit("player:move:error", {"message": "City not found"}, room=request.sid)
+    else:
+        emit("player:move:error", {"message": "Internal error"}, room=request.sid)
+    
 
 @socketio.on("player:use_event", namespace=NAMESPACE)
 def sio_player_use_event(data: Dict[str, Any]) -> None:
@@ -314,6 +310,21 @@ def sio_player_end_action(data: Dict[str, Any]) -> None:
 # ------------------------------
 # Server-originated game lifecycle notifications
 # ------------------------------
+
+def notify_player_moved(game_code: str, player: Player, new_city_name: str) -> None:
+    """
+    Notify all clients in the same game room that a player has moved.
+    """
+    socketio.emit(
+        "player:moved",
+        {
+            "player_id": player.id,
+            "new_city": new_city_name,
+            "actions_left": player.actions_left
+        },
+        room=game_code,
+        namespace="/game"
+    )
 
 def notify_turn_ended(game_id: str, player_id: str, next_player_id: str) -> None:
     pass

@@ -1,4 +1,4 @@
-﻿from models import Player, GameSession
+﻿from models import Player, GameSession, MoveLog, Cites, cards_in_desk
 from data import cities
 from eng import db
 
@@ -20,16 +20,28 @@ class PandemicGame:
         self.state["phase"] = self.db_ref.status
         # можно подгрузить игроков, карты и т.д.
 
-    def commit_to_db(self):
-        """Commit current in-memory state into DB."""
-        if not self.db_ref:
-            # создать, если не было
-            self.db_ref = GameSession(code=self.code)
-            db.session.add(self.db_ref)
+    def move(self, player: Player, to_city: str, transport, card):
+        if self.state["phase"] != "active":
+            return 403
+        
+        new_city = db.session.query(Cites).filter_by(name=to_city).first()
 
-        self.db_ref.status = self.state["phase"]
-        self.db_ref.turn = self.state.get("turn", 0)
+        if not new_city:
+            return 403
+
+        if player.actions_left <= 0:
+            return 403
+
+        log = MoveLog(session_code=self.code, 
+                      payload=f'{player.name} moved from {player.position_city.name} to {new_city.name}')
+        
+        player.position_city_id = new_city.id
+        player.actions_left -= 1
+
+        db.session.add(log)
         db.session.commit()
+
+        return 200
 
     def get_start_city(self):
         return self.cities.get_start_city().name
