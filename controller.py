@@ -1,8 +1,12 @@
 ﻿from flask import Blueprint, jsonify, request
+
+from data.cities import City
 from eng import db, socketio
-from models import GameSession, Player
+from models import GameSession, Player, MoveLog, Cites, cities_connections, Player, roles
 from flask_socketio import emit, join_room
 import secrets
+
+from game import SESSIONS, PandemicGame
 
 from typing import Any, Dict
 
@@ -15,32 +19,87 @@ def health():
 @api.post("/host/create")
 def host_create():
     code = secrets.token_hex(2).upper()
-    print(code)
+
     session = GameSession(code=code, status="waiting")
     db.session.add(session)
-    # db.session.commit()
+    db.session.commit()
 
-    return jsonify({"code": code})
+    game = SESSIONS.create_session(code, db)
+
+    return jsonify({
+        "status": "ok",
+        "code": code,
+        "phase": game.state["phase"],
+    })
 
 @socketio.on("host_join")
 def on_host_join(data):
     code = data.get("code")
     join_room(code)
-    emit("host_ready", {"code": code}, to=code)
+
+    # Проверяем, есть ли такая сессия
+    game = SESSIONS.get_session(code)
+    if not game:
+        emit("error", {"message": f"Session {code} not found"})
+        return
+
+    join_room(code)
+    emit("host_ready", {"code": code, "players": [p.name for p in game.Player]}, to=code)
 
 @socketio.on("player_join")
 def on_player_join(data):
     code = data.get("code")
-    name = data.get("name")
-    player = Player(name=name, session_code=code)
-    db.session.add(player)
+    player_name = data.get("name")
+    role_name = data.get("role")
+
+    # Проверяем сессию
+    game = SESSIONS.get_session(code)
+    if not game:
+        emit("error", {"message": f"Session {code} not found"})
+        return
+
+    # Получаем роль
+    role = db.session.query(roles).filter_by(name=role_name).first()
+    if not role:
+        emit("error", {"message": f"Role '{role_name}' not found"})
+        return
+
+    # Определяем стартовый город
+    start_city_name = game.get_start_city()
+    start_city = db.session.query(City).filter_by(name=start_city_name).first()
+    if not start_city:
+        emit("error", {"message": f"Start city '{start_city_name}' not found"})
+        return
+
+    # Добавляем игрока в БД
+    db_player = Player(
+        name=player_name,
+        role_id=role.id,
+        position_city_id=start_city.id
+    )
+    db.session.add(db_player)
     db.session.commit()
+
+    # Добавляем игрока в память
+    game.players.append(db_player)
+    game.commit_to_db()
+
     join_room(code)
-    emit("player_joined", {"name": name}, to=code)
+    emit("player_joined", {"name": player_name}, to=code)
 
 @socketio.on("start_game")
 def on_start_game(data):
     code = data.get("code")
+
+    game = SESSIONS.get_session(code)
+    if not game:
+        emit("error", {"message": f"Session {code} not found"})
+        return
+
+    # Меняем состояние
+    game.state["phase"] = "playing"
+    game.commit_to_db()
+
     emit("game_started", {}, to=code)
 
 # ------------------------------
@@ -49,19 +108,50 @@ def on_start_game(data):
 
 @api.post("/player/move")
 def post_player_move() -> Any:
-    pass
-    """Move a pawn from one city to another.
+    data = request.get_json()
 
-    Expected JSON:
-    {
-    "game_id": str,
-    "player_id": str,
-    "from_city": str, # current location (optional if server tracks)
-    "to_city": str,
-    "card_id": str | null, # optional; client may omit per "soft rules"
-    "transport": str | null # e.g., "drive", "direct", "charter", "shuttle"
-    }
-    """
+    player_id = data.get("player_id")
+    to_city_name = data.get("to_city")
+    transport = data.get("transport", "drive")
+
+    if not all([player_id, to_city_name]):
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+    
+    # Проверяем игрока и целевой город
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({"error": "Player not found"}), 404
+
+    new_city = Cites.query.filter_by(name=to_city_name).first()
+    if not new_city:
+        return jsonify({"status": "error", "message": "City not found"}), 404
+
+    game = SESSIONS.get_session(player.session_code)
+    if not game:
+        return jsonify({"status": "error", "message": f"Session {player.session_code} not found"}), 404
+
+    try:
+        result = game.move(player, to_city_name, transport)
+
+        if result == 200:
+            notify_player_moved(player.session_code, player, to_city_name)
+            return jsonify({
+                "status": "ok",
+                "player_id": player.id,
+                "new_city": to_city_name,
+                "actions_left": player.actions_left
+            }), 200
+        elif result == 403:
+            return jsonify({"status": "error", "message": "Move not allowed"}), 403
+        elif result == 404:
+            return jsonify({"status": "error", "message": "Invalid city"}), 404
+        else:
+            return jsonify({"status": "error", "message": "Internal error"}), 500
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"[MoveError] {e}")
+        return jsonify({"status": "error", "message": "Database error"}), 500
 
 @api.post("/player/use-event")
 def post_player_use_event() -> Any:
@@ -159,8 +249,39 @@ def post_player_end_action() -> Any:
 NAMESPACE = "/game"
 
 @socketio.on("player:move", namespace=NAMESPACE)
-def sio_player_move(data: Dict[str, Any]) -> None:
-    pass
+def sio_player_move(data) -> None:
+    """Handle real-time player movement."""
+    code = data.get("game_code")
+    player_id = data.get("player_id")
+    to_city_name = data.get("to_city")
+    transport = data.get("transport", "drive")
+    card_id = data.get("card_id")
+
+    if not all([code, player_id, to_city_name]):
+        emit("player:move:error", {"message": "Missing required fields"}, room=request.sid)
+        return
+    
+    player = db.session.query(Player).filter_by(id=player_id).first()
+    if not player:
+        emit("player:move:error", {"message": "Player not found"}, room=request.sid)
+        return
+
+    game = SESSIONS.get_session(code)
+    if not game:
+        emit("player:move:error", {"message": f"Session {code} not found"}, room=request.sid)
+        return
+
+    status = game.move(player, to_city_name, transport, card_id)
+
+    if status == 200:
+        emit("player:moved", {"player_id": player.id, "new_city": to_city_name}, room=code)
+    elif status == 403:
+        emit("player:move:error", {"message": "Move not allowed"}, room=request.sid)
+    elif status == 404:
+        emit("player:move:error", {"message": "City not found"}, room=request.sid)
+    else:
+        emit("player:move:error", {"message": "Internal error"}, room=request.sid)
+    
 
 @socketio.on("player:use_event", namespace=NAMESPACE)
 def sio_player_use_event(data: Dict[str, Any]) -> None:
@@ -189,6 +310,21 @@ def sio_player_end_action(data: Dict[str, Any]) -> None:
 # ------------------------------
 # Server-originated game lifecycle notifications
 # ------------------------------
+
+def notify_player_moved(game_code: str, player: Player, new_city_name: str) -> None:
+    """
+    Notify all clients in the same game room that a player has moved.
+    """
+    socketio.emit(
+        "player:moved",
+        {
+            "player_id": player.id,
+            "new_city": new_city_name,
+            "actions_left": player.actions_left
+        },
+        room=game_code,
+        namespace="/game"
+    )
 
 def notify_turn_ended(game_id: str, player_id: str, next_player_id: str) -> None:
     pass

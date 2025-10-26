@@ -15,6 +15,7 @@ class City:
 class CityGraph:
     def __init__(self):
         self.cities: dict[str, City] = {}
+        self.start_city: str = 'Атланта'
 
     def add_city(self, name: str, color: str):
         self.cities[name] = City(name, color)
@@ -25,10 +26,14 @@ class CityGraph:
     def get_city(self, name: str) -> City:
         return self.cities[name]
 
+    def get_start_city(self) -> City:
+        return self.cities.get(self.start_city)
+
 def build_city_graph() -> CityGraph:
     graph = CityGraph()
 
     # === Синие города ===
+    graph.add_city("Атланта", "синий")
     graph.add_city("Сан-Франциско", "синий")
     graph.add_city("Чикаго", "синий")
     graph.add_city("Монреаль", "синий")
@@ -40,7 +45,6 @@ def build_city_graph() -> CityGraph:
     graph.add_city("Париж", "синий")
     graph.add_city("Мадрид", "синий")
     graph.add_city("Вашингтон", "синий")
-    graph.add_city("Атланта", "синий")
 
     # === Жёлтые города ===
     graph.add_city("Лос-Анджелес", "жёлтый")
