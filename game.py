@@ -1,4 +1,4 @@
-﻿from models import Player, GameSession, MoveLog, Cites, cards_in_desk
+﻿from models import Player, GameSession, MoveLog, City, CardInHand
 from data import cities
 from eng import db
 
@@ -24,7 +24,7 @@ class PandemicGame:
         if self.state["phase"] != "active":
             return 403
         
-        new_city = db.session.query(Cites).filter_by(name=to_city).first()
+        new_city = db.session.query(City).filter_by(name=to_city).first()
 
         if not new_city:
             return 403

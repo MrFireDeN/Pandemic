@@ -2,7 +2,7 @@
 
 from data.cities import City
 from eng import db, socketio
-from models import GameSession, Player, MoveLog, Cites, cities_connections, Player, roles
+from models import GameSession, Player, MoveLog, City, CityConnection, Card, CardInHand, Role
 from flask_socketio import emit, join_room
 import secrets
 
@@ -59,7 +59,7 @@ def on_player_join(data):
         return
 
     # Получаем роль
-    role = db.session.query(roles).filter_by(name=role_name).first()
+    role = db.session.query(Role).filter_by(name=role_name).first()
     if not role:
         emit("error", {"message": f"Role '{role_name}' not found"})
         return
@@ -122,7 +122,7 @@ def post_player_move() -> Any:
     if not player:
         return jsonify({"error": "Player not found"}), 404
 
-    new_city = Cites.query.filter_by(name=to_city_name).first()
+    new_city = City.query.filter_by(name=to_city_name).first()
     if not new_city:
         return jsonify({"status": "error", "message": "City not found"}), 404
 
