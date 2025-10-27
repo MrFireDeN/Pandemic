@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Host — Pandemic{% endblock %}
+{% block content %}
+    <section id="host" class="host-layout">
+        <h2>Комната: {{ code }}</h2>
+        <div id="host-app">
+            <div class="status">
+                <p>Ожидание игроков...</p>
+                <ul>
+                    <li v-for="p in players" :key="p">{{ p }}</li>
+                </ul>
+            </div>
+
+            <div class="board">
+                <button @click="startGame" :disabled="players.length===0">Начать игру</button>
+            </div>
+        </div>
+    </section>
+{% endblock %}
+{% block scripts %}
+    <script>
+        window.__ROOM_CODE__ = "{{ code }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/common/socket.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/host.js') }}"></script>
+{% endblock %}

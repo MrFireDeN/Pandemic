@@ -1,0 +1,13 @@
+﻿:root { --max: 1080px; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; }
+.container { max-width: var(--max); margin: 0 auto; padding: 16px; }
+.site-footer { border-top: 1px solid #ddd; padding: 12px 16px; }
+.footer-inner { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+/* Host (ПК упор) */
+.host-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; }
+@media (max-width: 900px) { .host-layout { grid-template-columns: 1fr; } }
+
+/* Join (моб. упор) */
+.join-layout input, .join-layout button { width: 100%; padding: 12px; font-size: 16px; margin: 8px 0; }

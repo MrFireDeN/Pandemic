@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <title>{% block title %}Pandemic{% endblock %}</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+
+{% include "_footer.html" %}
+
+<script src="{{ url_for('static', filename='js/lib/socket.io.min.js') }}"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
