@@ -1,4 +1,4 @@
-﻿from models import Player, GameSession, MoveLog, City, CardInHand
+﻿from models import Player, GameSession, MoveLog, City, DeckOfCards
 from data import cities
 from eng import db
 

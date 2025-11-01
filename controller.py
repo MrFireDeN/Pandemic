@@ -2,7 +2,7 @@
 
 from data.cities import City
 from eng import db, socketio
-from models import GameSession, Player, MoveLog, City, CityConnection, Card, CardInHand, Role
+from models import GameSession, Player, MoveLog, City, CityConnection, Card, DeckOfCards, Role
 from flask_socketio import emit, join_room
 import secrets
 
