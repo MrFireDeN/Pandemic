@@ -1,0 +1,27 @@
+﻿{% extends "base.html" %}
+{% block title %}Board — Pandemic{% endblock %}
+{% block content %}
+    <section id="board">
+        <h2>Комната: {{ code }}</h2>
+        <table border="1" id="cities-table">
+            <thead>
+            <tr>
+                <th>Город</th>
+                <th>Цвет</th>
+                <th>Игроки</th>
+            </tr>
+            </thead>
+            <tbody id="cities-body">
+            <!-- Города будут подгружены через socket -->
+            </tbody>
+        </table>
+
+        <div id="players">
+            <h3>Игроки</h3>
+            <ul id="player-list"></ul>
+        </div>
+    </section>
+{% endblock %}
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/board.js') }}"></script>
+{% endblock %}

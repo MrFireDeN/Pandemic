@@ -2,7 +2,7 @@
 
 from data.cities import City
 from eng import db, socketio
-from models import GameSession, Player, MoveLog, City, CityConnection, Card, DeckOfCards, Role
+from models import GameSession, Player, MoveLog, City, CityConnection, Card, DeckOfCards, Role, ColorEnum, CardType, GameStatus
 from flask_socketio import emit, join_room
 import secrets
 
@@ -20,7 +20,7 @@ def health():
 def host_create():
     code = secrets.token_hex(2).upper()
 
-    session = GameSession(code=code, status="waiting")
+    session = GameSession(code=code, status=GameStatus.waiting)
     db.session.add(session)
     db.session.commit()
 

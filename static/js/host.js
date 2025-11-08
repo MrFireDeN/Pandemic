@@ -1,21 +1,34 @@
-﻿const { createApp } = Vue;
+﻿const roomCode = "{{ code }}";
+const socket = io("/game");
 
-createApp({
-    data: () => ({ players: [] }),
-    mounted() {
-        const code = window.__ROOM_CODE__;
-        socket.emit("host_join", { code });
-        socket.on("player_joined", ({ name }) => {
-            if (!this.players.includes(name)) this.players.push(name);
-        });
-        socket.on("game_started", () => {
-            // TODO: отрисовать стартовую фазу поля
-        });
-    },
-    methods: {
-        startGame() {
-            const code = window.__ROOM_CODE__;
-            socket.emit("start_game", { code });
-        }
+const playerList = document.getElementById("player-list");
+const startBtn = document.getElementById("start-btn");
+
+// Присоединяемся к комнате
+socket.emit("host_join", { code: roomCode });
+
+// Когда новый игрок подключается
+socket.on("player_joined", (data) => {
+    const li = document.createElement("li");
+    li.textContent = data.name;
+    playerList.appendChild(li);
+
+    // Если есть хотя бы один игрок — можно начинать
+    if (playerList.children.length > 0) {
+        startBtn.disabled = false;
     }
-}).mount("#host-app");
+});
+
+// Кнопка "Начать игру"
+startBtn.addEventListener("click", () => {
+    socket.emit("start_game", { code: roomCode });
+});
+
+// Подтверждение начала игры
+socket.on("game_started", () => {
+    window.location.href = `/board/${roomCode}`;
+});
+
+socket.on("error", (data) => {
+    alert(data.message || "Ошибка соединения");
+});

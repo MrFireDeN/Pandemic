@@ -88,7 +88,7 @@ class GameSession(db.Model):
     __tablename__ = 'game_sessions'
     
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(16), unique=True, index=True)
+    code = db.Column(db.String(4), unique=True, index=True)
     status = db.Column(db.Enum(GameStatus), default=GameStatus.waiting, nullable=False)
 
     players             = db.relationship('Player', backref='game', lazy="selectin", cascade="all, delete-orphan")
@@ -191,5 +191,5 @@ class CityState(db.Model):
     black = db.Column(db.Integer, default=0)
 
     base_city = db.relationship("City")
-    game = db.relationship("GameSession", backref="city_states")
+    # game = db.relationship("GameSession", backref="city_states")
     players_here = db.relationship("Player", backref="city_states")

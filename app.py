@@ -20,6 +20,14 @@ def create_app():
     def join():
         return render_template("join.html")
 
+    @app.route("/board/<code>")
+    def board(code):
+        return render_template("board.html", code=code)
+    
+    @app.route("/player/<code>/<name>")
+    def player(code, name):
+        return render_template("player.html", code=code, name=name)
+
 
     from controller import api
     app.register_blueprint(api, url_prefix="/api")

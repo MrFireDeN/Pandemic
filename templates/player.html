@@ -1,0 +1,21 @@
+﻿{% extends "base.html" %}
+{% block title %}Player — Pandemic{% endblock %}
+{% block content %}
+    <section id="player">
+        <h2>Игрок: {{ name }}</h2>
+        <h3>Комната: {{ code }}</h3>
+
+        <p>Оставшиеся действия: <span id="actions-left">4</span></p>
+
+        <div id="actions">
+            <label>Переместиться в:</label>
+            <input type="text" id="target-city" placeholder="Введите название города" />
+            <button id="move-btn">Переместиться</button>
+        </div>
+
+        <div id="log"></div>
+    </section>
+{% endblock %}
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/player.js') }}"></script>
+{% endblock %}

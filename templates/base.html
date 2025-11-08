@@ -14,8 +14,15 @@
 
 {% include "_footer.html" %}
 
-<script src="{{ url_for('static', filename='js/lib/socket.io.min.js') }}"></script>
-<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<!-- Socket.IO client -->
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    // резерв на случай отсутствия локального socket.io
+    if (typeof io === "undefined") {
+        document.write('<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"><\/script>');
+    }
+</script>
+
 {% block scripts %}{% endblock %}
 </body>
 </html>
