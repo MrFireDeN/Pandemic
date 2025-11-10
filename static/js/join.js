@@ -1,4 +1,4 @@
-﻿const socket = io("/game");
+﻿const socket = io();
 
 const joinBtn = document.getElementById("join-btn");
 const readyBtn = document.getElementById("ready-btn");
@@ -18,7 +18,7 @@ joinBtn.addEventListener("click", () => {
         return;
     }
 
-    socket.emit("player_join", { code, name, role: "Researcher" }); // временно фиксированная роль
+    socket.emit("player_join", { code, name, role: 1 }); // временно фиксированная роль
 
     socket.on("player_joined", (data) => {
         if (data.name === name) {

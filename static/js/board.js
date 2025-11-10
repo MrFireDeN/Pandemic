@@ -1,5 +1,5 @@
 ﻿const code = "{{ code }}";
-const socket = io("/game");
+const socket = io();
 
 socket.emit("host_join", { code });
 

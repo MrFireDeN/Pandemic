@@ -1,5 +1,5 @@
 ﻿const roomCode = "{{ code }}";
-const socket = io("/game");
+const socket = io();
 
 const playerList = document.getElementById("player-list");
 const startBtn = document.getElementById("start-btn");

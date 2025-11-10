@@ -43,6 +43,9 @@ class PandemicGame:
 
         return 200
 
+    def add_player(self, player: Player):
+        self.players.append(player)
+
     def get_start_city(self):
         return self.cities.get_start_city().name
 
