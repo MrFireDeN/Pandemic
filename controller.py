@@ -37,55 +37,69 @@ def on_host_join(data):
     code = data.get("code")
     join_room(code)
 
-    # Проверяем, есть ли такая сессия
     game = SESSIONS.get_session(code)
     if not game:
         emit("error", {"message": f"Session {code} not found"})
         return
 
-    join_room(code)
-    emit("host_ready", {"code": code, "players": [p.name for p in game.Player]}, to=code)
+    emit(
+        "host_ready",
+        {
+            "code": code,
+            "players": [p.name for p in game.players]
+        }
+    )
 
 @socketio.on("player_join")
 def on_player_join(data):
     code = data.get("code")
     player_name = data.get("name")
-    role_name = data.get("role")
+    role_id = data.get("role")
 
-    # Проверяем сессию
     game = SESSIONS.get_session(code)
     if not game:
         emit("error", {"message": f"Session {code} not found"})
         return
 
-    # Получаем роль
-    role = db.session.query(Role).filter_by(name=role_name).first()
+    # Проверка дубликатов
+    if any(p["name"] == player_name for p in game.players):
+        emit("error", {"message": f"Player '{player_name}' already exists"})
+        return
+
+    role = db.session.query(Role).filter_by(id=role_id).first()
     if not role:
-        emit("error", {"message": f"Role '{role_name}' not found"})
+        emit("error", {"message": f"Role '{role_id}' not found"})
         return
+    role_name = role.name
 
-    # Определяем стартовый город
-    start_city_name = game.get_start_city()
-    start_city = db.session.query(City).filter_by(name=start_city_name).first()
+    start_city = (
+        db.session
+        .query(City)
+        .filter_by(name=game.START_CITY)
+        .first()
+    )
     if not start_city:
-        emit("error", {"message": f"Start city '{start_city_name}' not found"})
+        emit("error", {"message": f"Start city '{game.START_CITY}' not found"})
         return
 
-    # Добавляем игрока в БД
     db_player = Player(
         name=player_name,
+        game_id=code,
         role_id=role.id,
         position_city_id=start_city.id
     )
+    
+    game.add_player(db_player)
+    
     db.session.add(db_player)
     db.session.commit()
 
-    # Добавляем игрока в память
-    game.players.append(db_player)
-    game.commit_to_db()
-
     join_room(code)
-    emit("player_joined", {"name": player_name}, to=code)
+
+    emit("player_joined", {
+        "name": player_name,
+        "role": role_name
+    }, to=code)
 
 @socketio.on("start_game")
 def on_start_game(data):
@@ -98,8 +112,7 @@ def on_start_game(data):
 
     # Меняем состояние
     game.state["phase"] = "playing"
-    game.commit_to_db()
-
+    game.commit_to_db(["state"])
     emit("game_started", {}, to=code)
 
 # ------------------------------
@@ -113,6 +126,8 @@ def post_player_move() -> Any:
     player_id = data.get("player_id")
     to_city_name = data.get("to_city")
     transport = data.get("transport", "drive")
+
+    print(f'player-move: {player_id}, {to_city_name}, {transport}')
 
     if not all([player_id, to_city_name]):
         return jsonify({"status": "error", "message": "Missing required fields"}), 400

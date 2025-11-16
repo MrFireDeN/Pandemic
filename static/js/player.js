@@ -1,14 +1,16 @@
 ﻿const code = "{{ code }}";
 const name = "{{ name }}";
 const playerId = "{{ player_id }}";
-const socket = io("/game");
+const socket = io();
 
 socket.emit("player_join", { code, name });
 
 document.getElementById("move-btn").addEventListener("click", () => {
     const city = document.getElementById("target-city").value.trim();
+
     if (city) {
         socket.emit("player:move", { game_code: code, player_id: playerId, to_city: city });
+        console.log(code, playerId, city);
     }
 });
 

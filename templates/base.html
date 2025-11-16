@@ -5,6 +5,7 @@
     <title>{% block title %}Pandemic{% endblock %}</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <script src="//cdn.jsdelivr.net/npm/socket.io@4.8.1/client-dist/socket.io.min.js"></script>
     {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -13,15 +14,6 @@
 </main>
 
 {% include "_footer.html" %}
-
-<!-- Socket.IO client -->
-<script src="/socket.io/socket.io.js"></script>
-<script>
-    // резерв на случай отсутствия локального socket.io
-    if (typeof io === "undefined") {
-        document.write('<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"><\/script>');
-    }
-</script>
 
 {% block scripts %}{% endblock %}
 </body>
