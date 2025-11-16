@@ -1,8 +1,9 @@
-﻿const roomCode = "{{ code }}";
+﻿const startBtn = document.getElementById("start-btn");
+const roomCode = startBtn.dataset.room;
+
 const socket = io();
 
 const playerList = document.getElementById("player-list");
-const startBtn = document.getElementById("start-btn");
 
 // Присоединяемся к комнате
 socket.emit("host_join", { code: roomCode });
@@ -10,10 +11,10 @@ socket.emit("host_join", { code: roomCode });
 // Когда новый игрок подключается
 socket.on("player_joined", (data) => {
     const li = document.createElement("li");
-    li.textContent = data.name;
+    li.textContent = `${data.name} — ${data.role}`;
+
     playerList.appendChild(li);
 
-    // Если есть хотя бы один игрок — можно начинать
     if (playerList.children.length > 0) {
         startBtn.disabled = false;
     }

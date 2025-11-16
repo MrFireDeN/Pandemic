@@ -3,12 +3,14 @@ from data import cities
 from eng import db
 
 class PandemicGame:
+    START_CITY = 'Atlanta'
+    
     def __init__(self, code=None, db_ref: GameSession = None):
         self.code = code
         self.db_ref = db_ref
         self.cities = cities.build_city_graph()
         self.state = {"phase": "lobby"}
-        self.players: list[Player] = []
+        self.players = []
 
     def refresh_data(self):
         """Reload shadow data from DB into memory (in case of server restart)."""
@@ -43,11 +45,21 @@ class PandemicGame:
 
         return 200
 
-    def add_player(self, player: Player):
-        self.players.append(player)
+    def add_player(self, db_player: Player):
+        self.players.append({
+            "id": db_player.id,
+            "name": db_player.name,
+            "role_id": db_player.role_id,
+            "city_id": db_player.position_city_id
+        })
 
-    def get_start_city(self):
-        return self.cities.get_start_city().name
+    def commit_to_db(self, commits: list[str]):
+        for commit in commits:
+            if commit == "state":
+                if not self.db_ref:
+                    self.db_ref = GameSession.query.filter_by(code=self.code).first()
+                self.db_ref.status = self.state["phase"]
+                db.session.commit()
 
 
 class Sessions:
