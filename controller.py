@@ -24,12 +24,12 @@ def host_create():
     db.session.add(session)
     db.session.commit()
 
-    game = SESSIONS.create_session(code, db)
+    game = SESSIONS.create_session(code)
 
     return jsonify({
         "status": "ok",
         "code": code,
-        "phase": game.state["phase"],
+        "phase": game.phase,
     })
 
 @socketio.on("host_join")
@@ -72,12 +72,8 @@ def on_player_join(data):
         return
     role_name = role.name
 
-    start_city = (
-        db.session
-        .query(City)
-        .filter_by(name=game.START_CITY)
-        .first()
-    )
+    start_city_name = game.cities.start_city
+    start_city = City.query.filter_by(name=start_city_name).first()
     if not start_city:
         emit("error", {"message": f"Start city '{game.START_CITY}' not found"})
         return
@@ -88,7 +84,6 @@ def on_player_join(data):
         role_id=role.id,
         position_city_id=start_city.id
     )
-    
     game.add_player(db_player)
     
     db.session.add(db_player)
@@ -110,9 +105,8 @@ def on_start_game(data):
         emit("error", {"message": f"Session {code} not found"})
         return
 
-    # Меняем состояние
-    game.state["phase"] = "playing"
-    game.commit_to_db(["state"])
+    game.phase = "playing"
+    
     emit("game_started", {}, to=code)
 
 # ------------------------------

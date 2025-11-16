@@ -1,76 +1,51 @@
-﻿from models import Player, GameSession, MoveLog, City, DeckOfCards
-from data import cities
+﻿from models import Player
 from eng import db
 
+from data.cities import build_city_graph
+from data.players import load_players, PlayerGame
+from data.decks import build_decks
+from data.boards import Board
+
+
 class PandemicGame:
-    START_CITY = 'Atlanta'
-    
-    def __init__(self, code=None, db_ref: GameSession = None):
+    def __init__(self, code=None):
         self.code = code
-        self.db_ref = db_ref
-        self.cities = cities.build_city_graph()
-        self.state = {"phase": "lobby"}
-        self.players = []
-
-    def refresh_data(self):
-        """Reload shadow data from DB into memory (in case of server restart)."""
-        if not self.db_ref:
-            self.db_ref = GameSession.query.filter_by(code=self.code).first()
-        if not self.db_ref:
-            raise ValueError(f"No DB session found for {self.code}")
-
-        self.state["phase"] = self.db_ref.status
-        # можно подгрузить игроков, карты и т.д.
-
-    def move(self, player: Player, to_city: str, transport, card):
-        if self.state["phase"] != "active":
-            return 403
+        self.phase = "waiting"
         
-        new_city = db.session.query(City).filter_by(name=to_city).first()
-
-        if not new_city:
-            return 403
-
-        if player.actions_left <= 0:
-            return 403
-
-        log = MoveLog(session_code=self.code, 
-                      payload=f'{player.name} moved from {player.position_city.name} to {new_city.name}')
+        self.board = Board(self)
+        self.cities = build_city_graph(self)
+        self.players = load_players(self)
+        self.deck_cards, self.deck_diseases = build_decks(self)
         
-        player.position_city_id = new_city.id
-        player.actions_left -= 1
+    def add_player(self, player_db: Player):
+        """
+        Создаёт объект PlayerGame в памяти и добавляет его в сессию.
+        player_db — это SQLAlchemy объект Player, который уже сохранён в БД.
+        """
+        pg = PlayerGame(
+            game=self,
+            id=player_db.id,
+            name=player_db.name,
+            role_id=player_db.role_id,
+            pos=self.cities.get_start_city()
+        )
 
-        db.session.add(log)
-        db.session.commit()
+        self.players.append(pg)
 
-        return 200
-
-    def add_player(self, db_player: Player):
-        self.players.append({
-            "id": db_player.id,
-            "name": db_player.name,
-            "role_id": db_player.role_id,
-            "city_id": db_player.position_city_id
-        })
-
-    def commit_to_db(self, commits: list[str]):
-        for commit in commits:
-            if commit == "state":
-                if not self.db_ref:
-                    self.db_ref = GameSession.query.filter_by(code=self.code).first()
-                self.db_ref.status = self.state["phase"]
-                db.session.commit()
+        return pg
 
 
 class Sessions:
+    _instance = None
+    
     def __init__(self):
         self.sessions: list[PandemicGame] = []
 
     def add_session(self, session: PandemicGame):
         self.sessions.append(session)
 
-    def create_session(self, code: str, db_ref: GameSession = None) -> PandemicGame:
-        session = PandemicGame(code=code, db_ref=db_ref)
+    def create_session(self, code: str) -> PandemicGame:
+        session = PandemicGame(code=code)
         self.add_session(session)
         return session
 
@@ -85,6 +60,9 @@ class Sessions:
 
     @staticmethod
     def get_instance():
-        return Sessions()
+        if Sessions._instance is None:
+            Sessions._instance = Sessions()
+        return Sessions._instance
+
 
 SESSIONS = Sessions()
