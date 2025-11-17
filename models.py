@@ -102,7 +102,7 @@ class GameState(db.Model):
     __tablename__ = 'game_states'
     
     id = db.Column(db.Integer, primary_key=True)
-    game_id = db.Column(db.Integer, db.ForeignKey("game_sessions.id"), nullable=False, index=True)
+    game_id = db.Column(db.Integer, db.ForeignKey("game_sessions.code"), nullable=False, index=True)
 
     # Очередность (Turn order): порядок ходов игроков (определяется по наибольшему населению в начале)
     turn_order = db.Column(db.Integer, default=0)

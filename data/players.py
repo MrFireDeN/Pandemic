@@ -17,7 +17,7 @@ class PlayerGame:
         self.pos = pos
         self.actions_left = 4
     
-    def from_db(self, player_db: Player, city_graph):
+    def load_from_db(self, player_db: Player, city_graph):
         self.id = player_db.id
         self.name = player_db.name
         self.role_id = player_db.role_id
@@ -31,7 +31,7 @@ class PlayerGame:
         
         return self
     
-    def to_db(self, player_db: Player):
+    def save_to_db(self, player_db: Player):
         if player_db.actions_left == self.actions_left and player_db.position_city_id == self.pos.id:
             return
             
@@ -46,6 +46,6 @@ def load_players(game):
     players = []
     for pl in rows:
         pg = PlayerGame(game, pl.id, pl.name, pl.role_id, None)
-        pg.from_db(pl, game.cities)
+        pg.load_from_db(pl, game.cities)
         players.append(pg)
     return players

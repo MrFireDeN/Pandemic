@@ -40,7 +40,7 @@ class CityGame:
     def remove_infection(self, color: str, count: int = 1):
         self.infection_cubes[color] = max(0, self.infection_cubes[color] - count)
         
-    def from_db(self, city_db: CityState):
+    def load_from_db(self, city_db: CityState):
         city = city_db.base_city
         
         self.id = city.id
@@ -55,7 +55,7 @@ class CityGame:
         
         return self
     
-    def to_db(self, city_db: CityState):
+    def save_to_db(self, city_db: CityState):
         city_db.has_station = self.has_station
         
         city_db.red = self.infection_cubes["red"]
@@ -113,6 +113,6 @@ def build_city_graph(game) -> CityGraph:
     states = CityState.query.filter_by(game_id=game.code).all()
     for st in states:
         city = graph.get_city_by_name(st.base_city.name)
-        city.from_db(st)
+        city.load_from_db(st)
 
     return graph
