@@ -8,12 +8,49 @@ from models import (
     DeckOfCards, DeckOfDiseases
 )
 
+if TYPE_CHECKING:
+    from data.players import PlayerGame
+
 
 class CardGame:
-    def __init__(self, card_id: int, name: str, type: str):
-        self.card_id = card_id
+    def __init__(self, card_id: int, name: str, card_type: str | CardType):
+        self.id = card_id
         self.name = name
-        self.type = type  # CITY / EVENT / EPIDEMIC
+
+        if isinstance(card_type, CardType):
+            card_type = card_type.value
+        self.type = card_type  # CITY / EVENT / EPIDEMIC
+
+        self.player_owner: PlayerGame | None = None
+
+    def is_type(self, card_type: str | CardType) -> bool:
+        if isinstance(card_type, CardType):
+            card_type = card_type.value
+
+        return self.type == card_type
+
+    def is_city(self) -> bool:
+        return self.is_type(CardType.CITY)
+
+    def is_event(self) -> bool:
+        return self.is_type(CardType.EVENT)
+
+    def is_epidemic(self) -> bool:
+        return self.is_type(CardType.EPIDEMIC)
+
+    def get_owner(self) -> PlayerGame | None:
+        return self.player_owner
+
+    def set_owner(self, player: PlayerGame):
+        self.player_owner = player
+
+    def load_from_db(self):
+        # TODO
+        pass
+
+    def save_to_db(self):
+        # TODO
+        pass
 
 
 class DeckCards:
@@ -40,7 +77,7 @@ class DeckCards:
         # сначала сохраняем draw_pile
         for order, cg in enumerate(self.draw_pile):
             entry = DeckOfCards(
-                card_id=cg.card_id,
+                card_id=cg.id,
                 game_id=code,
                 order_index=order,
                 in_game=True
@@ -50,7 +87,7 @@ class DeckCards:
         # затем сброс
         for order, cg in enumerate(self.discard_pile):
             entry = DeckOfCards(
-                card_id=cg.card_id,
+                card_id=cg.id,
                 game_id=code,
                 order_index=order,
                 in_game=False

@@ -24,7 +24,7 @@ class PandemicGame:
         """
         pg = PlayerGame(
             game=self,
-            id=player_db.id,
+            player_id=player_db.id,
             name=player_db.name,
             role_id=player_db.role_id,
             pos=self.cities.get_start_city()

@@ -21,6 +21,8 @@ class Board:
         self.cubes_per_color: list[int] = [24, 24, 24, 24]
         self.vaccines_state: list[int] = [0, 0, 0, 0]
 
+        self.is_game_over: bool = False
+
     def add_outbreak(self):
         """Увеличивает счётчик вспышек."""
         self.outbreak_indicator += 1
@@ -49,6 +51,12 @@ class Board:
     def cure_upgraded(self, color_index: int):
         """Лекарство уничтожило болезнь."""
         self.vaccines_state[color_index] = 2
+
+    def trigger_game_over(self, is_victory=False):
+        pass
+
+    def log_action(self):
+        pass
 
     def load_from_db(self):
         gs = GameState.query.filter_by(game_id=self.code).first()

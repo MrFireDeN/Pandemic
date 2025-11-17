@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from models import City, CityConnection, CityState
+from models import City, CityConnection, CityState, ColorEnum
 from eng import db
 
 if TYPE_CHECKING:
@@ -9,10 +9,13 @@ if TYPE_CHECKING:
 
 
 class CityGame:
-    def __init__(self, game, id: int, name: str, color: str):
+    def __init__(self, game, city_id: int, name: str, color: str | ColorEnum, graph: CityGraph = None):
         self.game = game
-        self.id = id
+        self.id = city_id
         self.name = name
+
+        if isinstance(color, ColorEnum):
+            color = color.value
         self.color = color
         
         self.connections: list[CityGame] = []
@@ -26,6 +29,8 @@ class CityGame:
             "black": 0
         }
 
+        self.graph = graph
+
     def connect(self, other: CityGame):
         if other not in self.connections:
             self.connections.append(other)
@@ -34,11 +39,30 @@ class CityGame:
     def is_connected(self, other: CityGame) -> bool:
         return other in self.connections
 
-    def add_infection(self, color: str, count: int = 1):
-        self.infection_cubes[color] += count
+    def add_infection(self, color: str | ColorEnum, count: int = 1):
+        if isinstance(color, ColorEnum):
+            color = color.value
 
-    def remove_infection(self, color: str, count: int = 1):
+        infection_count = self.infection_cubes[color] + count
+        self.infection_cubes[color] = min(3, infection_count)
+
+        if infection_count > 3:
+            self.trigger_outbreak(color)
+
+    def remove_infection(self, color: str | ColorEnum, count: int = 1):
+        if isinstance(color, ColorEnum):
+            color = color.value
+
         self.infection_cubes[color] = max(0, self.infection_cubes[color] - count)
+
+    def trigger_outbreak(self, color: str | ColorEnum):
+        if isinstance(color, ColorEnum):
+            color = color.value
+
+        if self.graph is None:
+            raise ValueError("Мама, где граф")
+
+        self.graph.handle_outbreak(self, color)
         
     def load_from_db(self, city_db: CityState):
         city = city_db.base_city
@@ -74,8 +98,30 @@ class CityGraph:
         
         self.start_city: str = 'Atlanta'
 
-    def add_city(self, id: int, name: str, color: str):
+        self.visited_cities: set[CityGame] = set()
+
+    def handle_outbreak(self, source_city: CityGame, color: str | ColorEnum):
+        if source_city in self.visited_cities:
+            return
+
+        self.visited_cities.add(source_city)
+
+        if isinstance(color, ColorEnum):
+            color = color.value
+
+        for city in source_city.connections:
+            if city not in self.visited_cities:
+                city.add_infection(color)
+
+    def clear_visited_cities(self):
+        self.visited_cities = set()
+
+    def add_city(self, id: int, name: str, color: str | ColorEnum):
+        if isinstance(color, ColorEnum):
+            color = color.value
+
         city = CityGame(self.game, id, name, color)
+        city.graph = self
         self.cities_by_name[name] = city
         self.cities_by_id[id] = city
 
