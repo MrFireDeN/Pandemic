@@ -1,6 +1,7 @@
 ﻿import enum
 from eng import db
 
+
 # ------------------------------
 # Enums
 # ------------------------------
@@ -10,16 +11,19 @@ class ColorEnum(enum.Enum):
     blue = "blue"
     black = "black"
 
+
 class CardType(enum.Enum):
     CITY = "CITY"
     EVENT = "EVENT"
     EPIDEMIC = "EPIDEMIC"
+
 
 class GameStatus(enum.Enum):
     waiting = "waiting"
     active = "active"
     finished = "finished"
     aborted = "aborted"
+
 
 # ------------------------------
 # Справочники — static data
@@ -47,6 +51,7 @@ class City(db.Model):
         lazy='selectin'
     )
 
+
 class CityConnection(db.Model):
     __tablename__ = 'cities_connections'
 
@@ -54,12 +59,14 @@ class CityConnection(db.Model):
     city_id = db.Column(db.Integer, db.ForeignKey("cities.id"), nullable=False)
     connected_city_id = db.Column(db.Integer, db.ForeignKey("cities.id"), nullable=False)
 
+
 class Role(db.Model):
     __tablename__ = 'roles'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True, nullable=False)
     description = db.Column(db.Text)
+
 
 class Event(db.Model):
     __tablename__ = 'events'
@@ -69,6 +76,7 @@ class Event(db.Model):
     description = db.Column(db.Text)
     is_instant = db.Column(db.Boolean, default=False)
     is_single_use = db.Column(db.Boolean, default=True)
+
 
 class Card(db.Model):
     __tablename__ = 'cards'
@@ -80,6 +88,7 @@ class Card(db.Model):
 
     city_id = db.Column(db.Integer, db.ForeignKey("cities.id"), index=True)     # для городов
     event_id = db.Column(db.Integer, db.ForeignKey("events.id"), index=True)    # для событий
+
 
 # ------------------------------
 # Игровая логика - dynamic data
@@ -97,6 +106,7 @@ class GameSession(db.Model):
     game_state          = db.relationship('GameState', backref='game', uselist=False, cascade="all, delete-orphan")
     deck_of_cards       = db.relationship('DeckOfCards', backref='game', lazy="selectin", cascade="all, delete")
     deck_of_diseases    = db.relationship('DeckOfDiseases', backref='game', lazy="selectin", cascade="all, delete")
+
 
 class GameState(db.Model):
     __tablename__ = 'game_states'
@@ -126,7 +136,8 @@ class GameState(db.Model):
     # Состояние лекарств (Medicine state): статус лекарств (0 – не создано, 1 – создано, 2 – уничтожено)
     # Хранится как JSON строка (например, "[0, 0, 0, 0]")
     vaccines_state = db.Column(db.Text, default="[0, 0, 0, 0]")
-    
+
+
 class Player(db.Model):
     __tablename__ = 'players'
     
@@ -141,12 +152,14 @@ class Player(db.Model):
     
     role = db.relationship('Role')
 
+
 class MoveLog(db.Model):
     __tablename__ = 'move_logs'
     
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey("game_sessions.code"), index=True, nullable=False)
     payload = db.Column(db.Text)
+
 
 class DeckOfCards(db.Model):
     __tablename__ = 'deck_of_cards'
@@ -163,6 +176,7 @@ class DeckOfCards(db.Model):
     card = db.relationship("Card", backref="card_instances")
     player = db.relationship("Player", backref="cards_owned")
 
+
 class DeckOfDiseases(db.Model):
     __tablename__ = 'deck_of_diseases'
     
@@ -175,6 +189,7 @@ class DeckOfDiseases(db.Model):
     in_game = db.Column(db.Boolean, default=True)
 
     city = db.relationship("City")
+
 
 class CityState(db.Model):
     __tablename__ = 'city_states'
@@ -191,5 +206,4 @@ class CityState(db.Model):
     black = db.Column(db.Integer, default=0)
 
     base_city = db.relationship("City")
-    # game = db.relationship("GameSession", backref="city_states")
     players_here = db.relationship("Player", backref="city_states")
