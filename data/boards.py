@@ -1,9 +1,12 @@
-﻿import json
+﻿from __future__ import annotations
+
+import json
 from typing import TYPE_CHECKING
 
-from eng import db
-from models import GameState, ColorEnum
-
+if TYPE_CHECKING:
+    from data.enums import RoleType, ColorType
+    from data.cities import CityGame
+    from data.decks import CardGame
 
 class Board:
     def __init__(self, game):
@@ -44,18 +47,18 @@ class Board:
     def return_cube(self, color_index: int, count: int = 1):
         self.cubes_per_color[color_index] += count
 
-    def cure_discovered(self, color: str | ColorEnum):
+    def cure_discovered(self, color: str | ColorEnumDB):
         """Лекарство создано."""
-        if isinstance(color, ColorEnum):
+        if isinstance(color, ColorEnumDB):
             color = color.value
             
-        if color == ColorEnum.red:
+        if color == ColorEnumDB.red:
             self.vaccines_state[0] = 1
-        if color == ColorEnum.yellow:
+        if color == ColorEnumDB.yellow:
             self.vaccines_state[1] = 1
-        if color == ColorEnum.blue:
+        if color == ColorEnumDB.blue:
             self.vaccines_state[2] = 1
-        if color == ColorEnum.black:
+        if color == ColorEnumDB.black:
             self.vaccines_state[3] = 1
 
     def cure_upgraded(self, color_index: int):
@@ -68,33 +71,8 @@ class Board:
     def log_action(self):
         pass
 
-    def load_from_db(self):
-        gs = GameState.query.filter_by(game_id=self.code).first()
-        
-        if gs is None:
-            raise RuntimeError(f"GameState for game '{self.code}' not found")
+    def serialize(self):
+        pass
 
-        self.turn_order = gs.turn_order
-        self.outbreak_indicator = gs.outbreak_indicator
-        self.infection_indicator = gs.infection_indicator
-        self.research_stations = gs.research_stations
-
-        self.cubes_per_color = json.loads(gs.cubes_per_color)
-        self.vaccines_state = json.loads(gs.vaccines_state)
-
-        return self
-
-    def save_to_db(self):
-        gs: GameState | None = GameState.query.filter_by(game_id=self.code).first()
-        if gs is None:
-            raise RuntimeError(f"GameState for game '{self.code}' not found")
-
-        gs.turn_order = self.turn_order
-        gs.outbreak_indicator = self.outbreak_indicator
-        gs.infection_indicator = self.infection_indicator
-        gs.research_stations = self.research_stations
-
-        gs.cubes_per_color = json.dumps(self.cubes_per_color)
-        gs.vaccines_state = json.dumps(self.vaccines_state)
-
-        db.session.commit()
+    def deserialize(self):
+        pass

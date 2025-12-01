@@ -1,8 +1,5 @@
-﻿from models import Player
-from eng import db
-
-from data.cities import build_city_graph, CityGame
-from data.players import load_players, PlayerGame
+﻿from data.cities import build_city_graph, CityGame
+from data.players import PlayerGame
 from data.decks import build_decks, CardGame
 from data.boards import Board
 
@@ -14,7 +11,7 @@ class PandemicGame:
         
         self.board = Board(self)
         self.cities = build_city_graph(self)
-        self.players = load_players(self)
+        self.players = list[PlayerGame]
         self.deck_cards, self.deck_diseases = build_decks(self)
         
     def add_player(self, player_id, name, role_id):
@@ -54,7 +51,7 @@ class PandemicGame:
         if city is None:
             return 402
 
-        player.cure_disease(city, color)
+        player.cure_city(city, color)
         return 200
 
     def use_event_player(self, player_id: int, card: CardGame):
@@ -112,6 +109,12 @@ class PandemicGame:
         pass
 
     def notify_game_over(self):
+        pass
+    
+    def serialize(self):
+        pass
+    
+    def deserialize(self, serialized) -> PlayerGame:
         pass
 
     def __search_player(self, player_id: int) -> PlayerGame | None:

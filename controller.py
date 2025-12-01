@@ -1,9 +1,9 @@
 ﻿from flask import Blueprint, jsonify, request
-
-from data.cities import City
-from eng import db, socketio
-from models import GameSession, Player, MoveLog, City, CityConnection, Card, DeckOfCards, Role, ColorEnum, CardType, GameStatus
 from flask_socketio import emit, join_room
+
+from eng import db, socketio
+from models import GameSessionModel, PlayerModel, MoveLogModel, CityModel, CityConnectionModel, CardModel, DeckOfCardsModel, RoleModel, ColorEnumDB, CardTypeDB, GameStatusDB
+
 import secrets
 
 from game import SESSIONS, PandemicGame
@@ -20,7 +20,7 @@ def health():
 def host_create():
     code = secrets.token_hex(2).upper()
 
-    session = GameSession(code=code, status=GameStatus.waiting)
+    session = GameSessionModel(code=code, status=GameStatusDB.waiting)
     db.session.add(session)
     db.session.commit()
 
@@ -63,22 +63,22 @@ def on_player_join(data):
 
     # Проверка дубликатов
     if any(p["name"] == player_name for p in game.players):
-        emit("error", {"message": f"Player '{player_name}' already exists"})
+        emit("error", {"message": f"PlayerModel '{player_name}' already exists"})
         return
 
-    role = db.session.query(Role).filter_by(id=role_id).first()
+    role = db.session.query(RoleModel).filter_by(id=role_id).first()
     if not role:
         emit("error", {"message": f"Role '{role_id}' not found"})
         return
     role_name = role.name
 
     start_city_name = game.cities.start_city
-    start_city = City.query.filter_by(name=start_city_name).first()
+    start_city = CityModel.query.filter_by(name=start_city_name).first()
     if not start_city:
         emit("error", {"message": f"Start city '{game.START_CITY}' not found"})
         return
 
-    db_player = Player(
+    db_player = PlayerModel(
         name=player_name,
         game_id=code,
         role_id=role.id,
@@ -110,7 +110,7 @@ def on_start_game(data):
     emit("game_started", {}, to=code)
 
 # ------------------------------
-# REST endpoints — Player actions
+# REST endpoints — PlayerModel actions
 # ------------------------------
 
 @api.post("/player/move")
@@ -127,13 +127,13 @@ def post_player_move() -> Any:
         return jsonify({"status": "error", "message": "Missing required fields"}), 400
     
     # Проверяем игрока и целевой город
-    player = Player.query.get(player_id)
+    player = PlayerModel.query.get(player_id)
     if not player:
-        return jsonify({"error": "Player not found"}), 404
+        return jsonify({"error": "PlayerModel not found"}), 404
 
-    new_city = City.query.filter_by(name=to_city_name).first()
+    new_city = CityModel.query.filter_by(name=to_city_name).first()
     if not new_city:
-        return jsonify({"status": "error", "message": "City not found"}), 404
+        return jsonify({"status": "error", "message": "CityModel not found"}), 404
 
     game = SESSIONS.get_session(player.session_code)
     if not game:
@@ -251,7 +251,7 @@ def post_player_end_action() -> Any:
     """
 
 # ------------------------------
-# Socket.IO — Player action events (namespace=/game)
+# Socket.IO — PlayerModel action events (namespace=/game)
 # ------------------------------
 
 
@@ -270,9 +270,9 @@ def sio_player_move(data) -> None:
         emit("player:move:error", {"message": "Missing required fields"}, room=request.sid)
         return
     
-    player = db.session.query(Player).filter_by(id=player_id).first()
+    player = db.session.query(PlayerModel).filter_by(id=player_id).first()
     if not player:
-        emit("player:move:error", {"message": "Player not found"}, room=request.sid)
+        emit("player:move:error", {"message": "PlayerModel not found"}, room=request.sid)
         return
 
     game = SESSIONS.get_session(code)
@@ -287,7 +287,7 @@ def sio_player_move(data) -> None:
     elif status == 403:
         emit("player:move:error", {"message": "Move not allowed"}, room=request.sid)
     elif status == 404:
-        emit("player:move:error", {"message": "City not found"}, room=request.sid)
+        emit("player:move:error", {"message": "CityModel not found"}, room=request.sid)
     else:
         emit("player:move:error", {"message": "Internal error"}, room=request.sid)
     
@@ -320,7 +320,7 @@ def sio_player_end_action(data: Dict[str, Any]) -> None:
 # Server-originated game lifecycle notifications
 # ------------------------------
 
-def notify_player_moved(game_code: str, player: Player, new_city_name: str) -> None:
+def notify_player_moved(game_code: str, player: PlayerModel, new_city_name: str) -> None:
     """
     Notify all clients in the same game room that a player has moved.
     """
