@@ -100,6 +100,8 @@ class CityGraph:
 
         self.visited_cities: set[CityGame] = set()
 
+        self.research_stations: list[CityGame] = []
+
     def handle_outbreak(self, source_city: CityGame, color: str | ColorEnum):
         if source_city in self.visited_cities:
             return
@@ -116,14 +118,14 @@ class CityGraph:
     def clear_visited_cities(self):
         self.visited_cities = set()
 
-    def add_city(self, id: int, name: str, color: str | ColorEnum):
+    def add_city(self, city_id: int, name: str, color: str | ColorEnum):
         if isinstance(color, ColorEnum):
             color = color.value
 
-        city = CityGame(self.game, id, name, color)
+        city = CityGame(self.game, city_id, name, color)
         city.graph = self
         self.cities_by_name[name] = city
-        self.cities_by_id[id] = city
+        self.cities_by_id[city_id] = city
 
     def connect(self, name_a: str, name_b: str):
         self.cities_by_name[name_a].connect(self.cities_by_name[name_b])
@@ -136,6 +138,18 @@ class CityGraph:
 
     def get_start_city(self) -> CityGame:
         return self.cities_by_name[self.start_city]
+
+    def add_research_station(self, city_name: str):
+        city = self.get_city_by_name(city_name)
+        if city is None or city.has_station:
+            return
+
+        self.research_stations.append(city)
+
+        if len(self.research_stations) > 6:
+            self.research_stations.pop()
+
+        return
 
 
 def build_city_graph(game) -> CityGraph:
@@ -160,5 +174,7 @@ def build_city_graph(game) -> CityGraph:
     for st in states:
         city = graph.get_city_by_name(st.base_city.name)
         city.load_from_db(st)
+
+    graph.add_research_station(graph.get_start_city().name)
 
     return graph

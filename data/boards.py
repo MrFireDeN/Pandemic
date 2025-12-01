@@ -2,7 +2,7 @@
 from typing import TYPE_CHECKING
 
 from eng import db
-from models import GameState
+from models import GameState, ColorEnum
 
 
 class Board:
@@ -44,9 +44,19 @@ class Board:
     def return_cube(self, color_index: int, count: int = 1):
         self.cubes_per_color[color_index] += count
 
-    def cure_discovered(self, color_index: int):
+    def cure_discovered(self, color: str | ColorEnum):
         """Лекарство создано."""
-        self.vaccines_state[color_index] = 1
+        if isinstance(color, ColorEnum):
+            color = color.value
+            
+        if color == ColorEnum.red:
+            self.vaccines_state[0] = 1
+        if color == ColorEnum.yellow:
+            self.vaccines_state[1] = 1
+        if color == ColorEnum.blue:
+            self.vaccines_state[2] = 1
+        if color == ColorEnum.black:
+            self.vaccines_state[3] = 1
 
     def cure_upgraded(self, color_index: int):
         """Лекарство уничтожило болезнь."""
