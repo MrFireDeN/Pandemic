@@ -1,76 +1,141 @@
-﻿from models import Player, GameSession, MoveLog, City, DeckOfCards
-from data import cities
-from eng import db
+﻿from data.cities import build_city_graph, CityGame
+from data.players import PlayerGame
+from data.decks import build_decks, CardGame
+from data.boards import Board
+
 
 class PandemicGame:
-    START_CITY = 'Atlanta'
-    
-    def __init__(self, code=None, db_ref: GameSession = None):
+    def __init__(self, code=None):
         self.code = code
-        self.db_ref = db_ref
-        self.cities = cities.build_city_graph()
-        self.state = {"phase": "lobby"}
-        self.players = []
-
-    def refresh_data(self):
-        """Reload shadow data from DB into memory (in case of server restart)."""
-        if not self.db_ref:
-            self.db_ref = GameSession.query.filter_by(code=self.code).first()
-        if not self.db_ref:
-            raise ValueError(f"No DB session found for {self.code}")
-
-        self.state["phase"] = self.db_ref.status
-        # можно подгрузить игроков, карты и т.д.
-
-    def move(self, player: Player, to_city: str, transport, card):
-        if self.state["phase"] != "active":
-            return 403
+        self.phase = "waiting"
         
-        new_city = db.session.query(City).filter_by(name=to_city).first()
-
-        if not new_city:
-            return 403
-
-        if player.actions_left <= 0:
-            return 403
-
-        log = MoveLog(session_code=self.code, 
-                      payload=f'{player.name} moved from {player.position_city.name} to {new_city.name}')
+        self.board = Board(self)
+        self.cities = build_city_graph(self)
+        self.players = list[PlayerGame]
+        self.deck_cards, self.deck_diseases = build_decks(self)
         
-        player.position_city_id = new_city.id
-        player.actions_left -= 1
+    def add_player(self, player_id, name, role_id):
+        pg = PlayerGame(
+            game=self,
+            player_id=player_id,
+            name=name,
+            role_id=role_id,
+            pos=self.cities.get_start_city()
+        )
 
-        db.session.add(log)
-        db.session.commit()
+        self.players.append(pg)
 
+        return pg
+
+    def start_game(self):
+        self.phase = "playing"
+
+    def move_player(self, player_id: int, to_city: str, use_card: CardGame | None = None):
+        player = self.__search_player(player_id)
+        if player is None:
+            return 401
+
+        city = self.cities.get_city_by_name(to_city)
+        if city is None:
+            return 402
+
+        player.move_to(city, use_card)
         return 200
 
-    def add_player(self, db_player: Player):
-        self.players.append({
-            "id": db_player.id,
-            "name": db_player.name,
-            "role_id": db_player.role_id,
-            "city_id": db_player.position_city_id
-        })
+    def cure_city_player(self, player_id: int, city_name: str, color: str):
+        player = self.__search_player(player_id)
+        if player is None:
+            return 401
 
-    def commit_to_db(self, commits: list[str]):
-        for commit in commits:
-            if commit == "state":
-                if not self.db_ref:
-                    self.db_ref = GameSession.query.filter_by(code=self.code).first()
-                self.db_ref.status = self.state["phase"]
-                db.session.commit()
+        city = self.cities.get_city_by_name(city_name)
+        if city is None:
+            return 402
+
+        player.cure_city(city, color)
+        return 200
+
+    def use_event_player(self, player_id: int, card: CardGame):
+        pass
+
+    def build_research_station_player(self, player_id: int, city_name: str, card: CardGame):
+        player = self.__search_player(player_id)
+        if player is None:
+            return 401
+
+        city = self.cities.get_city_by_name(city_name)
+        if city is None:
+            return 402
+
+        player.build_research_station(city, card)
+        return 200
+
+    def trade_card_player(self, from_player_id: int, to_player_id, card: CardGame):
+        from_player = self.__search_player(from_player_id)
+        to_player = self.__search_player(to_player_id)
+
+        if from_player is None or to_player is None:
+            return 401
+
+        from_player.trade_card(card, to_player)
+        return 200
+
+    def discover_cure_player(self, player_id: int, color: str, cards: list[CardGame]):
+        player = self.__search_player(player_id)
+        if player is None:
+            return 401
+
+        player.discover_cure(color, cards)
+        return 200
+
+    def notify_player_moved(self):
+        pass
+
+    def notify_turn_ended(self):
+        pass
+
+    def notify_player_drew_cards(self):
+        pass
+
+    def notify_disease_spread(self):
+        pass
+
+    def notify_epidemic(self):
+        pass
+
+    def notify_outbreak(self):
+        pass
+
+    def notify_disease_cured(self):
+        pass
+
+    def notify_game_over(self):
+        pass
+    
+    def serialize(self):
+        pass
+    
+    def deserialize(self, serialized) -> PlayerGame:
+        pass
+
+    def __search_player(self, player_id: int) -> PlayerGame | None:
+        for player in self.players:
+            if player.id == player_id:
+                return player
+        return None
+
 
 
 class Sessions:
+    _instance = None
+    
     def __init__(self):
         self.sessions: list[PandemicGame] = []
 
     def add_session(self, session: PandemicGame):
         self.sessions.append(session)
 
-    def create_session(self, code: str, db_ref: GameSession = None) -> PandemicGame:
-        session = PandemicGame(code=code, db_ref=db_ref)
+    def create_session(self, code: str) -> PandemicGame:
+        session = PandemicGame(code=code)
         self.add_session(session)
         return session
 
@@ -85,6 +150,9 @@ class Sessions:
 
     @staticmethod
     def get_instance():
-        return Sessions()
+        if Sessions._instance is None:
+            Sessions._instance = Sessions()
+        return Sessions._instance
+
 
 SESSIONS = Sessions()
