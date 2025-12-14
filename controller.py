@@ -6,11 +6,31 @@ from models import GameSessionModel, PlayerModel, MoveLogModel, CityModel, CityC
 
 import secrets
 
-from game import SESSIONS, PandemicGame
+from game import SESSIONS, PandemicGame, Observer
+from data.repo import GameRepository
 
 from typing import Any, Dict
 
 api = Blueprint("api", __name__)
+
+def load_game_sessions(app):
+    """Загружаем все игровые сессии из базы данных."""
+    with app.app_context():  # Контекст приложения создается с использованием переданного объекта app
+        game_sessions = GameSessionModel.query.all()
+
+        for gs in game_sessions:
+            game = GameRepository.load_game(gs.code)
+            SESSIONS.add_session(game)
+
+
+class Controller(Observer):
+    def __init__(self):
+        pass
+
+    def update(self, message: str):
+        pass
+
+controller = Controller()
 
 @api.route("/health")
 def health():
@@ -25,6 +45,7 @@ def host_create():
     db.session.commit()
 
     game = SESSIONS.create_session(code)
+    game.add_observer(controller)
 
     return jsonify({
         "status": "ok",
@@ -62,7 +83,7 @@ def on_player_join(data):
         return
 
     # Проверка дубликатов
-    if any(p["name"] == player_name for p in game.players):
+    if any(p.name == player_name for p in game.players):
         emit("error", {"message": f"PlayerModel '{player_name}' already exists"})
         return
 
@@ -84,7 +105,7 @@ def on_player_join(data):
         role_id=role.id,
         position_city_id=start_city.id
     )
-    game.add_player(db_player)
+    game.add_player(db_player.id, player_name, role_id)
     
     db.session.add(db_player)
     db.session.commit()
@@ -269,21 +290,16 @@ def sio_player_move(data) -> None:
     if not all([code, player_id, to_city_name]):
         emit("player:move:error", {"message": "Missing required fields"}, room=request.sid)
         return
-    
-    player = db.session.query(PlayerModel).filter_by(id=player_id).first()
-    if not player:
-        emit("player:move:error", {"message": "PlayerModel not found"}, room=request.sid)
-        return
 
     game = SESSIONS.get_session(code)
     if not game:
         emit("player:move:error", {"message": f"Session {code} not found"}, room=request.sid)
         return
 
-    status = game.move(player, to_city_name, transport, card_id)
+    status, position = game.move(player_id, to_city_name, transport, card_id)
 
     if status == 200:
-        emit("player:moved", {"player_id": player.id, "new_city": to_city_name}, room=code)
+        emit("player:moved", {"player_id": player_id, "new_city": to_city_name}, room=code)
     elif status == 403:
         emit("player:move:error", {"message": "Move not allowed"}, room=request.sid)
     elif status == 404:

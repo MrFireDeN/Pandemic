@@ -1,84 +1,171 @@
 ﻿from __future__ import annotations
 
+import json
 import random
 from typing import List, Optional, TYPE_CHECKING
 
+from data.enums import CardType
 
 if TYPE_CHECKING:
-    from data.enums import CardType
     from data.players import PlayerGame
 
 
 class CardGame:
-    def __init__(self, card_id: int, name: str, card_type: CardType):
+    def __init__(self, card_id: int, name: str, card_type: CardType, deck):
+        """
+        Инициализирует карту для игры.
+        
+        :param card_id: Уникальный идентификатор карты.
+        :param name: Название карты.
+        :param card_type: Тип карты (CardType).
+        :param deck: Колода, к которой относится эта карта.
+        """
         self.id = card_id
         self.name = name
         self.type = card_type
 
         self.player_owner: PlayerGame | None = None
+        
+        self.deck = deck
+        
+    def use(self):
+        """
+        Использует карту, если это карта события.
+        Если карта события, выполняется её эффект, а затем она сбрасывается.
+        """
+        if self.is_event():
+            print("ну типа произошел ивет")
+        
+        if self.deck is not None:
+            self.deck.discard(self)
 
     def is_type(self, card_type: CardType) -> bool:
+        """
+        Проверяет, является ли карта заданного типа.
+        
+        :param card_type: Тип карты для проверки.
+        :return: True, если карта указанного типа, иначе False.
+        """
         return self.type == card_type
 
     def is_city(self) -> bool:
+        """
+        Проверяет, является ли карта картой города.
+        
+        :return: True, если карта типа CITY, иначе False.
+        """
         return self.is_type(CardType.CITY)
 
     def is_event(self) -> bool:
+        """
+        Проверяет, является ли карта картой события.
+        
+        :return: True, если карта типа EVENT, иначе False.
+        """
         return self.is_type(CardType.EVENT)
 
     def is_epidemic(self) -> bool:
+        """
+        Проверяет, является ли карта картой эпидемии.
+        
+        :return: True, если карта типа EPIDEMIC, иначе False.
+        """
         return self.is_type(CardType.EPIDEMIC)
 
     def serialize(self):
-        # TODO
-        pass
+        return json.dumps({
+            'id': self.id,
+            'name': self.name,
+            'type': self.type.name,
+            'player_owner': self.player_owner.id if self.player_owner else None,
+        })
 
-    def deserialize(self):
-        # TODO
-        pass
+    @staticmethod
+    def deserialize(data: str, deck):
+        data_dict = json.loads(data)
+        card = CardGame(data_dict['id'], data_dict['name'], CardType[data_dict['type']], deck)
+        card.player_owner = deck.get_player_by_id(data_dict['player_owner']) if data_dict['player_owner'] else None
+        return card
 
 
 class DeckCards:
     def __init__(self, game):
+        """
+        Инициализирует колоду карт для игры.
+
+        :param game: Игра, к которой относится эта колода.
+        """
         self.game = game
         self.draw_pile: List[CardGame] = []
         self.discard_pile: List[CardGame] = []
-    
+
     def shuffle(self):
-        random.shuffle(self.draw_pile)
+        """
+        Перемешивает колоду. Первые 10 карт не могут быть эпидемиями.
+        Если в первых 10 картах есть эпидемия, колода перемешивается заново.
+        """
+        while True:
+            random.shuffle(self.draw_pile)
+            if all(not card.is_epidemic() for card in self.draw_pile[:10]):
+                break
 
     def draw(self) -> Optional[CardGame]:
+        """
+        Вытягивает карту из колоды. Если колода пуста, завершает игру.
+
+        :return: Вытянутая карта или None, если колода пуста.
+        """
         if not self.draw_pile:
+            self.game.board.trigger_game_over()
             return None
         return self.draw_pile.pop(0)
     
     def discard(self, card: CardGame):
-        """Кладёт карту в сброс."""
+        """
+        Добавляет карту в сброс.
+
+        :param card: Карта, которую нужно сбросить.
+        """
         self.discard_pile.append(card)
-        
+
     def serialize(self):
-        pass
-    
-    def deserialize(self):
-        pass
+        return {
+            "draw_pile": [card.id for card in self.draw_pile],
+            "discard_pile": [card.id for card in self.discard_pile],
+        }
+
+    def deserialize(self, data):
+        self.draw_pile = [self.game.cards.get_card_by_id(id) for id in data["draw_pile"]]
+        self.discard_pile = [self.game.cards.get_card_by_id(id) for id in data["discard_pile"]]
 
 
 class DeckDiseases:
     def __init__(self, game):
         self.game = game
-        self.draw_pile: List[int] = []
-        self.discard_pile: List[int] = []
+        self.draw_pile: List[CardGame] = []
+        self.discard_pile: List[CardGame] = []
 
     def shuffle(self):
         random.shuffle(self.draw_pile)
 
-    def draw(self) -> Optional[int]:
+    def draw(self) -> Optional[CardGame]:
+        """
+        Вытягивает карту из колоды. Если колода пуста, завершает игру.
+
+        :return: Вытянутая карта или None, если колода пуста.
+        """
         if not self.draw_pile:
+            self.game.board.trigger_game_over()
             return None
         return self.draw_pile.pop(0)
 
-    def discard(self, city_id: int):
-        self.discard_pile.append(city_id)
+    def discard(self, card: CardGame):
+        """
+        Добавляет карту в сброс.
+
+        :param card: Карта, которую нужно сбросить.
+        """
+        self.discard_pile.append(card)
 
     def return_discard_on_top(self):
         """Эпидемия — перемешиваем discard и кладём сверху draw."""
@@ -87,7 +174,11 @@ class DeckDiseases:
         self.discard_pile = []
 
     def serialize(self):
-        pass
-    
-    def deserialize(self):
-        pass
+        return {
+            "draw_pile": self.draw_pile,
+            "discard_pile": self.discard_pile,
+        }
+
+    def deserialize(self, data):
+        self.draw_pile = data["draw_pile"]
+        self.discard_pile = data["discard_pile"]

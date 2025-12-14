@@ -1,5 +1,6 @@
 from flask import Flask, render_template
 from eng import db, socketio
+from controller import load_game_sessions
 
 def create_app():
     app = Flask(__name__, template_folder='templates')
@@ -7,6 +8,8 @@ def create_app():
 
     db.init_app(app)
     socketio.init_app(app)
+
+    load_game_sessions(app)
 
     @app.route("/")
     def index():
