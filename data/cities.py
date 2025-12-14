@@ -1,31 +1,26 @@
 from __future__ import annotations
+
+import json
 from typing import TYPE_CHECKING
 
+from data.enums import ColorType
+
 if TYPE_CHECKING:
-    from data.enums import ColorType
     from data.players import PlayerGame
 
 
 class CityGame:
-    def __init__(self, game, city_id: int, name: str, color: str | ColorType, graph: CityGraph = None):
+    def __init__(self, game, city_id: int, name: str, color: ColorType, graph: CityGraph = None):
         self.game = game
         self.id = city_id
         self.name = name
-
-        if isinstance(color, str):
-            color = ColorType[color]
         self.color = color
-        
+
         self.connections: list[CityGame] = []
         self.players: list[PlayerGame] = []
-        
+
         self.has_station = False
-        self.infection_cubes = {
-            "red": 0,
-            "yellow": 0,
-            "blue": 0,
-            "black": 0
-        }
+        self.infection_cubes = {color: 0 for color in ColorType}
 
         self.graph = graph
 
@@ -37,33 +32,60 @@ class CityGame:
     def is_connected(self, other: CityGame) -> bool:
         return other in self.connections
 
-    def add_infection(self, color: str | ColorType, count: int = 1):
-        if isinstance(color, ColorType):
-            color = color.name
-
+    def add_infection(self, color: ColorType, count: int = 1):
+        """
+        Добавляет инфекцию в город по заданному цвету.
+        
+        :param color: Цвет болезни (ColorEnum).
+        :param count: Количество инфекции для добавления.
+        """
+        self.game.board.use_cube(color, count)
+        if self.game.board.is_game_over:
+            return 
+        
         infection_count = self.infection_cubes[color] + count
         self.infection_cubes[color] = min(3, infection_count)
 
         if infection_count > 3:
             self.__trigger_outbreak(color)
 
-    def remove_infection(self, color: str | ColorType, count: int = 1):
-        if isinstance(color, ColorType):
-            color = color.name
+    def remove_infection(self, color: ColorType, count: int = 1):
+        """
+        Убирает инфекцию из города по заданному цвету.
+        
+        :param color: Цвет болезни (ColorEnum).
+        :param count: Количество инфекции для удаления.
+        """
+        current_infection = self.infection_cubes[color]
+        new_infection_count = max(0, current_infection - count)
+        self.infection_cubes[color] = new_infection_count
+    
+        self.game.board.return_cube(color, current_infection - new_infection_count)
 
-        self.infection_cubes[color] = max(0, self.infection_cubes[color] - count)
-
-    def __trigger_outbreak(self, color: str | ColorType):
+    def __trigger_outbreak(self, color: ColorType):
+        """Срабатывает при вспышке болезни в городе."""
         if self.graph is None:
             raise ValueError("Мама, где граф")
 
         self.graph.handle_outbreak(self, color)
-        
+
     def serialize(self):
-        pass
-    
-    def deserialize(self):
-        pass
+        return {
+            "id": self.id,
+            "game_id": self.game.code,
+            "has_station": self.has_station,
+            "red": self.infection_cubes[ColorType.red],
+            "yellow": self.infection_cubes[ColorType.yellow],
+            "blue": self.infection_cubes[ColorType.blue],
+            "black": self.infection_cubes[ColorType.black],
+        }
+
+    @staticmethod
+    def deserialize(data, game):
+        city = game.cities.city_by_id[data["id"]]
+        city.infection_cubes = data["infection_cubes"]
+        city.has_station = data["has_station"]
+        return city
 
 
 class CityGraph:
@@ -78,10 +100,7 @@ class CityGraph:
 
         self.__visited_cities: set[CityGame] = set()
 
-    def add_city(self, city_id: int, name: str, color: str | ColorType):
-        if isinstance(color, str):
-            color = ColorType[color]
-
+    def add_city(self, city_id: int, name: str, color: ColorType):
         city = CityGame(self.game, city_id, name, color)
         city.graph = self
         self.cities_by_name[name] = city
@@ -100,6 +119,7 @@ class CityGraph:
         return self.cities_by_name[self.start_city]
 
     def build_research_station(self, city_name: str):
+        """Строит исследовательскую станцию в указанном городе."""
         city = self.get_city_by_name(city_name)
         if city is None or city.has_station:
             return
@@ -112,7 +132,8 @@ class CityGraph:
 
         return
 
-    def handle_outbreak(self, source_city: CityGame, color: str | ColorType):
+    def handle_outbreak(self, source_city: CityGame, color: ColorType):
+        """Обрабатывает вспышку инфекции, распространяя болезнь в соседние города."""
         if source_city in self.__visited_cities:
             return
 
@@ -123,34 +144,5 @@ class CityGraph:
                 city.add_infection(color)
 
     def clear_visited_cities(self):
+        """Очищает список посещенных городов после обработки вспышки."""
         self.__visited_cities = set()
-
-
-'''
-def build_city_graph(game) -> CityGraph:
-    """
-    Собирает в ОЗУ граф городов для конкретной партии (game_code).
-
-    1. Загружает статические города и связи (CityModel, CityConnectionModel).
-    2. Накладывает динамическое состояние конкретной партии (CityStateModel).
-    """
-
-    graph = CityGraph(game)
-
-    # 1. Статическая карта
-    for city in CityModel.query.all():
-        graph.add_city(city.id, city.name, city.color.value)
-
-    for conn in CityConnectionModel.query.all():
-        graph.connect(conn.city.name, conn.connected_city.name)
-
-    # 2. Динамика партии
-    states = CityStateModel.query.filter_by(game_id=game.code).all()
-    for st in states:
-        city = graph.get_city_by_name(st.base_city.name)
-        city.load_from_db(st)
-
-    graph.add_research_station(graph.get_start_city().name)
-
-    return graph
-'''

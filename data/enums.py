@@ -30,3 +30,8 @@ class GameStatus(Enum):
     active   = 2
     finished = 3
     aborted  = 4
+
+class Difficult(Enum):
+    easy    = 4
+    medium  = 5
+    hard    = 6
