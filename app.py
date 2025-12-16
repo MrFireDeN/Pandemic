@@ -1,6 +1,7 @@
 from flask import Flask, render_template
 from eng import db, socketio
 from controller import load_game_sessions
+from models import PlayerModel
 
 def create_app():
     app = Flask(__name__, template_folder='templates')
@@ -29,7 +30,8 @@ def create_app():
     
     @app.route("/player/<code>/<name>")
     def player(code, name):
-        return render_template("player.html", code=code, name=name)
+        player = PlayerModel.query.filter_by(game_id=code, name=name).first()
+        return render_template("player.html", code=code, name=name, player_id=player.id if player else "")
 
 
     from controller import api
