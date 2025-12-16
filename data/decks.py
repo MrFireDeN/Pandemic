@@ -72,21 +72,6 @@ class CardGame:
         """
         return self.is_type(CardType.EPIDEMIC)
 
-    def serialize(self):
-        return json.dumps({
-            'id': self.id,
-            'name': self.name,
-            'type': self.type.name,
-            'player_owner': self.player_owner.id if self.player_owner else None,
-        })
-
-    @staticmethod
-    def deserialize(data: str, deck):
-        data_dict = json.loads(data)
-        card = CardGame(data_dict['id'], data_dict['name'], CardType[data_dict['type']], deck)
-        card.player_owner = deck.get_player_by_id(data_dict['player_owner']) if data_dict['player_owner'] else None
-        return card
-
 
 class DeckCards:
     def __init__(self, game):
@@ -128,16 +113,6 @@ class DeckCards:
         """
         self.discard_pile.append(card)
 
-    def serialize(self):
-        return {
-            "draw_pile": [card.id for card in self.draw_pile],
-            "discard_pile": [card.id for card in self.discard_pile],
-        }
-
-    def deserialize(self, data):
-        self.draw_pile = [self.game.cards.get_card_by_id(id) for id in data["draw_pile"]]
-        self.discard_pile = [self.game.cards.get_card_by_id(id) for id in data["discard_pile"]]
-
 
 class DeckDiseases:
     def __init__(self, game):
@@ -173,12 +148,13 @@ class DeckDiseases:
         self.draw_pile = self.discard_pile + self.draw_pile
         self.discard_pile = []
 
-    def serialize(self):
-        return {
-            "draw_pile": self.draw_pile,
-            "discard_pile": self.discard_pile,
-        }
+    def draw_last(self):
+        """
+        Вытягивает карту из-под низа колоды. Если колода пуста, завершает игру.
 
-    def deserialize(self, data):
-        self.draw_pile = data["draw_pile"]
-        self.discard_pile = data["discard_pile"]
+        :return: Вытянутая карта или None, если колода пуста.
+        """
+        if not self.draw_pile:
+            self.game.board.trigger_game_over()
+            return None
+        return self.draw_pile.pop()
