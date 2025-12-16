@@ -3,11 +3,13 @@
 import json
 from typing import TYPE_CHECKING
 
+from sympy.codegen.ast import continue_
+
 from data.enums import ColorType
 
 if TYPE_CHECKING:
-    from data.cities import CityGame
-    from data.decks import CardGame
+    from data.cities import CityGame, CityGraph
+    from data.decks import CardGame, DeckCards, DeckDiseases
     from data.players import PlayerGame
 
 class Board:
@@ -31,12 +33,62 @@ class Board:
     def add_outbreak(self):
         """Увеличивает счётчик вспышек."""
         self.outbreak_indicator += 1
+        
+        self.game.notify_outbreak()
+        
         if self.outbreak_indicator >= 8:
             self.trigger_game_over()
 
-    def add_infection_epidemic(self):
-        """Увеличивает индикатор эпидемии (эпидемия карты EPIDEMIC)."""
+    def trigger_epidemic(self):
+        """
+        Обрабатывает событие эпидемии согласно правилам Pandemic.
+    
+        Метод реализует полный цикл эпидемии и выполняет следующие этапы:
+    
+        1. Увеличивает индикатор заражения.
+    
+        2. Фаза инфицирования:
+        
+           - извлекает нижнюю карту из колоды инфекций;
+           - если игра уже завершена или карта отсутствует, выполнение прекращается;
+           - находит соответствующий город и добавляет в него
+             три куба инфекции соответствующего цвета;
+           - отправляет карту инфекции в сброс.
+    
+        3. Фаза обострения:
+        
+           - возвращает все карты из сброса колоды инфекций
+             наверх колоды (с последующим перемешиванием,
+             если это предусмотрено реализацией).
+    
+        Метод не возвращает значения и может досрочно завершаться,
+        если в процессе эпидемии игра переходит в состояние завершения.
+    
+        :return: None
+        """
+        # 1) Распространение
         self.infection_indicator += 1
+        
+        # 2) Инфицирование 
+        diseases_card = self.game.deck_diseases.draw_last()
+        if self.is_game_over or diseases_card is None:
+            return 
+            
+        city = self.game.cities.get_city_by_name(diseases_card.name)
+        
+        color = city.color
+        if self.vaccines_state[color] != 2:
+            city.add_infection(color, 3)
+        
+        self.game.deck_diseases.distract(diseases_card)
+        
+        if self.is_game_over:
+            return
+        
+        # 3) Обострение
+        self.game.deck_diseases.return_discard_on_top()
+        
+        self.game.notify_epidemic()
 
     def use_cube(self, color: ColorType, count: int = 1):
         """
@@ -95,38 +147,15 @@ class Board:
     
         self.game.notify_game_over(is_victory)
 
-
-    def log_action(self):
-        pass
-
-    def serialize(self):
-        return json.dumps({
-            'code': self.code,
-            'turn_order': self.turn_order,
-            'outbreak_indicator': self.outbreak_indicator,
-            'infection_indicator': self.infection_indicator,
-            'cubes_per_color': {color.name: count for color, count in self.cubes_per_color.items()},
-            'vaccines_state': {color.name: state for color, state in self.vaccines_state.items()},
-            'is_game_over': self.is_game_over,
-        })
-    
-    @staticmethod
-    def deserialize(game, data):
+    def diseases_count_by_infection_indicator(self) -> int:
         """
-        Восстанавливает доску из данных.
+        Возвращает количество карт инфекции,
+        которое необходимо взять в текущий ход.
         
-        :param data: Данные доски (строка JSON или уже распарсенный словарь).
-        :param game: Игра, к которой относится доска.
+        :return: Количество карт инфекции.
         """
-        if isinstance(data, str):
-            # Если данные — строка, парсим их
-            data = json.loads(data)
-    
-        board = Board(game)
-        board.turn_order = data['turn_order']
-        board.outbreak_indicator = data['outbreak_indicator']
-        board.infection_indicator = data['infection_indicator']
-        board.cubes_per_color = {ColorType[color]: count for color, count in data["cubes_per_color"].items()}
-        board.vaccines_state = {ColorType[color]: state for color, state in data["vaccines_state"].items()}
-    
-        return board
+        if self.outbreak_indicator < 3:
+            return 2
+        elif self.outbreak_indicator < 5:
+            return 3
+        return 4

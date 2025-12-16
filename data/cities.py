@@ -15,6 +15,7 @@ class CityGame:
         self.id = city_id
         self.name = name
         self.color = color
+        self.population: int = 0
 
         self.connections: list[CityGame] = []
         self.players: list[PlayerGame] = []
@@ -69,24 +70,6 @@ class CityGame:
 
         self.graph.handle_outbreak(self, color)
 
-    def serialize(self):
-        return {
-            "id": self.id,
-            "game_id": self.game.code,
-            "has_station": self.has_station,
-            "red": self.infection_cubes[ColorType.red],
-            "yellow": self.infection_cubes[ColorType.yellow],
-            "blue": self.infection_cubes[ColorType.blue],
-            "black": self.infection_cubes[ColorType.black],
-        }
-
-    @staticmethod
-    def deserialize(data, game):
-        city = game.cities.city_by_id[data["id"]]
-        city.infection_cubes = data["infection_cubes"]
-        city.has_station = data["has_station"]
-        return city
-
 
 class CityGraph:
     def __init__(self, game):
@@ -100,8 +83,9 @@ class CityGraph:
 
         self.__visited_cities: set[CityGame] = set()
 
-    def add_city(self, city_id: int, name: str, color: ColorType):
+    def add_city(self, city_id: int, name: str, color: ColorType, population: int = 0):
         city = CityGame(self.game, city_id, name, color)
+        city.population = population
         city.graph = self
         self.cities_by_name[name] = city
         self.cities_by_id[city_id] = city

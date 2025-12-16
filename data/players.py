@@ -135,22 +135,6 @@ class PlayerGame:
         card.use()
         self.__commit_action(f"Использована карта события {card.name}")
 
-    def serialize(self):
-        return json.dumps({
-            'id': self.id,
-            'name': self.name,
-            'role': self.role.value,
-            'position_city': self.pos.id if self.pos else None,
-            'actions_left': self.actions_left,
-        })
-
-    @staticmethod
-    def deserialize(data: dict, game):
-        pos = game.cities.get_city_by_id(data['pos']) if data['pos'] else None
-        player = PlayerGame(game, data['id'], data['name'], data['role'], pos)
-        player.actions_left = data['actions_left']
-        return player
-
     def __move_by_car(self, city: CityGame):
         self.pos = city
         self.__commit_action(f"Перемещен в город {city.name} по дороге")

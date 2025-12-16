@@ -44,144 +44,140 @@ class GameRepository:
         """
         Сохраняет игру в базе данных.
         """
-        serialized_game = game.serialize()
-
-        game_session = GameSessionModel(
-            code=game.code,
-            status=game.phase,
-        )
-        existing_session = GameSessionModel.query.filter_by(code=game.code).first()
-        if existing_session:
-            # Если сессия существует, обновляем её
-            existing_session.status = game.phase
-            db.session.merge(existing_session)  # Используем merge для обновления
-        else:
-            # Если сессии нет, добавляем новую
-            db.session.add(game_session)
-    
-        # Save the board state (сохраняем данные доски)
-        board_data = game.board.serialize()
+        game_session_model = GameSessionModel.query.filter_by(code=game.code).first()
         
-        if isinstance(board_data, str):
-            board_data = json.loads(board_data)
-
-        board_model = GameStateModel.query.filter_by(game_id=game.code).first()
-        if board_model:
-            board_model.turn_order = board_data["turn_order"]
-            board_model.outbreak_indicator = board_data["outbreak_indicator"]
-            board_model.infection_indicator = board_data["infection_indicator"]
-            board_model.cubes_per_color = json.dumps(board_data["cubes_per_color"])
-            board_model.vaccines_state = json.dumps(board_data["vaccines_state"])
+        if game_session_model:
+            game_session_model.status = game.phase
         else:
-            board_model = GameStateModel(
-                game_id=game.code,
-                turn_order=board_data["turn_order"],
-                outbreak_indicator=board_data["outbreak_indicator"],
-                infection_indicator=board_data["infection_indicator"],
-                cubes_per_color=json.dumps(board_data["cubes_per_color"]),
-                vaccines_state=json.dumps(board_data["vaccines_state"]),
-            )
+            game_session_model = GameSessionModel(code=game.code, status=game.phase)
+            db.session.add(game_session_model)
+    
+        # Save the board
+        board_data = game.board
+        board_model = GameStateModel.query.filter_by(game_id=game.code).first()
+        
+        if board_model is None:
+            board_model = GameStateModel(game_id=game.code)
             db.session.add(board_model)
+            
+        board_model.turn_order          = board_data.turn_order
+        board_model.outbreak_indicator  = board_data.outbreak_indicator
+        board_model.infection_indicator = board_data.infection_indicator
+
+        cubes_per_color = {color.name: count for color, count in board_data.cubes_per_color.items()}
+        vaccines_state = {color.name: state for color, state in board_data.vaccines_state.items()}
+        
+        board_model.cubes_per_color     = json.dumps(cubes_per_color)
+        board_model.vaccines_state      = json.dumps(vaccines_state)
     
         # Save the cities
+        city_state_models = CityStateModel.query.filter_by(game_id=game.code).all()
+        city_state_by_city_id = {m.city_id: m for m in city_state_models}
+        
+        city_models = CityModel.query.all()
+        city_id_by_name = {m.name: m.id for m in city_models}
+        
         for city_name, city in game.cities.cities_by_name.items():
-            city_state_model = CityStateModel(
-                id=city.id,
-                game_id=game.code,
-                city_id=city.id,
-                has_station=city.has_station,
-                red=city.infection_cubes[ColorType.red],
-                yellow=city.infection_cubes[ColorType.yellow],
-                blue=city.infection_cubes[ColorType.blue],
-                black=city.infection_cubes[ColorType.black],
-            )
-            db.session.merge(city_state_model)
+            city_id = city_id_by_name.get(city_name)
+            if city_id is None:
+                raise ValueError(f"Unknown city name '{city_name}' in CityModel table")
+
+            city_state_model = city_state_by_city_id.get(city_id)
+            if city_state_model is None:
+                city_state_model = CityStateModel(city_id=city_id, game_id=game.code)
+                db.session.add(city_state_model)
+                city_state_by_city_id[city_id] = city_state_model
+
+            city_state_model.has_station = city.has_station
+            city_state_model.red         = city.infection_cubes[ColorType.red]
+            city_state_model.yellow      = city.infection_cubes[ColorType.yellow]
+            city_state_model.blue        = city.infection_cubes[ColorType.blue]
+            city_state_model.black       = city.infection_cubes[ColorType.black]
     
         # Save the players
-        for player in game.players:
-            player_data = player.serialize()
-            player_model = PlayerModel(
-                id=player_data["id"],
-                name=player_data["name"],
-                game_id=game.code,
-                role_id=player_data["role"],
-                position_city_id=player_data["position_city"],
-                actions_left=player_data["actions_left"],
-            )
-            db.session.merge(player_model)
+        player_models = PlayerModel.query.filter_by(game_id=game.code).all()
+        players_by_name = {p.name: p for p in player_models}
+        
+        for player_data in game.players:
+            player_model = players_by_name.get(player_data.name)
+        
+            if player_model is None:
+                player_model = PlayerModel(
+                    name=player_data.name,
+                    game_id=game.code,
+                )
+                db.session.add(player_model)
+                players_by_name[player_data.name] = player_model
+                
+            city_id = city_id_by_name.get(player_data.pos.name)
+            if city_id is None:
+                raise ValueError(f"Unknown city name '{player_data.pos.name}' in CityModel table")
+        
+            player_model.role_id = player_data.role.value
+            player_model.position_city_id = city_id
+            player_model.actions_left = player_data.actions_left
+
+        db.session.flush()
             
-        if game.deck_cards:
-            for order_index, card in enumerate(game.deck_cards.draw_pile):
-                card_data = card.serialize()
+        # Save cards
+        card_models = CardModel.query.all()
+        card_id_by_name = {m.name: m.id for m in card_models}
+
+        # Save deck of player cards
+        deck_of_cards_models = DeckOfCardsModel.query.filter_by(game_id=game.code).all()
+        card_in_deck_by_card_id = {m.card_id: m for m in deck_of_cards_models}
+
+        player_id_by_name = {name: model.id for name, model in players_by_name.items()}
         
-                if isinstance(card_data, str):
-                    card_data = json.loads(card_data)
+        def update_deck_card(card_data: CardGame, order_index: int, in_game: bool) -> None:
+            card_id = card_id_by_name.get(card_data.name)
         
-                deck_card_model = DeckOfCardsModel.query.filter_by(game_id=game.code, card_id=card_data["id"]).first()
+            deck_card_model = card_in_deck_by_card_id.get(card_id)
+            if deck_card_model is None:
+                deck_card_model = DeckOfCardsModel(
+                    game_id=game.code,
+                    card_id=card_id,
+                )
+                db.session.add(deck_card_model)
+                card_in_deck_by_card_id[card_id] = deck_card_model
+
+            owner = getattr(card_data, "player_owner", None)
         
-                if deck_card_model:
-                    deck_card_model.order_index = order_index
-                    deck_card_model.in_game = True
-                    deck_card_model.player_id = card_data["player_owner"]
-                else:
-                    deck_card_model = DeckOfCardsModel(
-                        card_id=card_data["id"],
-                        game_id=game.code,
-                        player_id=card_data["player_owner"],
-                        order_index=order_index,
-                        in_game=True,
-                    )
-                    db.session.add(deck_card_model)
+            deck_card_model.order_index = order_index
+            deck_card_model.in_game = in_game
+            deck_card_model.player_id = player_id_by_name.get(owner.name) if owner else None
+
+        for order_index, card_data in enumerate(game.deck_cards.draw_pile):
+            update_deck_card(card_data, order_index=order_index, in_game=True)
+    
+        for order_index, card_data in enumerate(game.deck_cards.discard_pile):
+            update_deck_card(card_data, order_index=order_index, in_game=False)
+
+        # Save deck of diseases cards
+        deck_of_diseases_models = DeckOfDiseasesModel.query.filter_by(game_id=game.code).all()
+        diseases_in_deck_by_city_id = {m.city_id: m for m in deck_of_diseases_models}
         
-            for order_index, card in enumerate(game.deck_cards.discard_pile):
-                card_data = card.serialize()
+        def update_deck_diseases(card_data: CardGame, order_index: int, in_game: bool) -> None:
+            card_id = card_id_by_name.get(card_data.name)
+
+            deck_diseases_model = diseases_in_deck_by_city_id.get(card_id)
+            if deck_diseases_model is None:
+                deck_diseases_model = DeckOfDiseasesModel(
+                    game_id=game.code,
+                    city_id=card_id,
+                )
+                db.session.add(deck_diseases_model)
+                diseases_in_deck_by_city_id[card_id] = deck_diseases_model
+
+            deck_diseases_model.order_index = order_index
+            deck_diseases_model.in_game = in_game
         
-                deck_card_model = DeckOfCardsModel.query.filter_by(game_id=game.code, card_id=card_data["id"]).first()
         
-                if deck_card_model:
-                    deck_card_model.order_index = order_index
-                    deck_card_model.in_game = False
-                    deck_card_model.player_id = card_data["player_owner"]
-                else:
-                    deck_card_model = DeckOfCardsModel(
-                        card_id=card_data["id"],
-                        game_id=game.code,
-                        player_id=card_data["player_owner"],
-                        order_index=order_index,
-                        in_game=False,
-                    )
-                    db.session.add(deck_card_model)
-        
-        if game.deck_diseases:
-            for order_index, city in enumerate(game.deck_diseases.draw_pile):
-                deck_disease_model = DeckOfDiseasesModel.query.filter_by(game_id=game.code, city_id=city.id).first()
-        
-                if deck_disease_model:
-                    deck_disease_model.order_index = order_index
-                    deck_disease_model.in_game = True
-                else:
-                    deck_disease_model = DeckOfDiseasesModel(
-                        city_id=city.id,
-                        game_id=game.code,
-                        order_index=order_index,
-                        in_game=True,
-                    )
-                    db.session.add(deck_disease_model)
-        
-            for order_index, city in enumerate(game.deck_diseases.discard_pile):
-                deck_disease_model = DeckOfDiseasesModel.query.filter_by(game_id=game.code, city_id=city.id).first()
-        
-                if deck_disease_model:
-                    deck_disease_model.order_index = order_index
-                    deck_disease_model.in_game = False
-                else:
-                    deck_disease_model = DeckOfDiseasesModel(
-                        city_id=city.id,
-                        game_id=game.code,
-                        order_index=order_index,
-                        in_game=False,
-                    )
-                    db.session.add(deck_disease_model)
+        for order_index, city_data in enumerate(game.deck_diseases.draw_pile):
+            update_deck_diseases(city_data, order_index=order_index, in_game=True)
+    
+        for order_index, city_data in enumerate(game.deck_diseases.discard_pile):
+            update_deck_diseases(city_data, order_index=order_index, in_game=False)
     
         db.session.commit()
 
@@ -195,24 +191,43 @@ class GameRepository:
             return None
 
         game = PandemicGame(code=session.code)
-        game.status = session.status
+        game.phase = session.status
 
         # Load the board state
-        board_data = GameStateModel.query.filter_by(game_id=code).first()
-        if board_data:
-            game.board.deserialize(game, {
-                "turn_order": board_data.turn_order,
-                "outbreak_indicator": board_data.outbreak_indicator,
-                "infection_indicator": board_data.infection_indicator,
-                "cubes_per_color": json.loads(board_data.cubes_per_color),
-                "vaccines_state": json.loads(board_data.vaccines_state),
-            })
+        board_model = GameStateModel.query.filter_by(game_id=code).first()
+        if board_model:
+            board_data = Board(game)
+            board_data.turn_order = board_model.turn_order
+            board_data.infection_indicator = board_model.infection_indicator
+            board_data.outbreak_indicator = board_model.outbreak_indicator
+
+            cubes_raw = json.loads(board_model.cubes_per_color) if board_model.cubes_per_color else {}
+            vaccines_raw = json.loads(board_model.vaccines_state) if board_model.vaccines_state else {}
+
+            def normalize_color_dict(raw: dict, default_value):
+                result = {}
+                for color in (ColorType.red, ColorType.yellow, ColorType.blue, ColorType.black):
+                    result[color] = raw.get(color.name, default_value)
+                    
+                return result
+            
+            board_data.cubes_per_color = normalize_color_dict(cubes_raw, 0)
+            board_data.vaccines_state = normalize_color_dict(vaccines_raw, 0)
+            
+            game.board = board_data
         else:
             print(f"Board data for game {code} not found.")
 
-        city_state_data = CityStateModel.query.filter_by(game_id=code).all()
-        for city_state in city_state_data:
-            city = game.cities.get_city_by_id(city_state.city_id)
+        #  Load city states
+        city_models = CityModel.query.all()
+        city_state_models = CityStateModel.query.filter_by(game_id=code).all()
+        
+        city_name_by_id = {m.id: m.name for m in city_models}
+        
+        for city_state in city_state_models:
+            city_name = city_name_by_id.get(city_state.city_id)
+            city = game.cities.get_city_by_name(city_name)
+            
             if city:
                 city.has_station = city_state.has_station
                 city.infection_cubes[ColorType.red] = city_state.red
@@ -220,18 +235,102 @@ class GameRepository:
                 city.infection_cubes[ColorType.blue] = city_state.blue
                 city.infection_cubes[ColorType.black] = city_state.black
 
-        # Load the players
-        players = PlayerModel.query.filter_by(game_id=code).all()
-        for player_model in players:
-            player_data = {
-                "id": player_model.id,
-                "name": player_model.name,
-                "role": player_model.role_id,
-                "pos": player_model.position_city_id,
-                "actions_left": player_model.actions_left,
-            }
-            player = PlayerGame.deserialize(player_data, game)
+        # Load the player_models
+        player_models = PlayerModel.query.filter_by(game_id=code).all()
+        player_by_id = {}
+        
+        for player_model in player_models:
+            city_name = city_name_by_id.get(player_model.position_city_id)
+            if city_name is None:
+                raise ValueError(
+                    f"Unknown city_id={player_model.position_city_id} for player '{player_model.name}' in game {code}"
+                )
+            
+            city = game.cities.get_city_by_name(city_name)
+            if city is None:
+                raise ValueError(f"City '{city_name}' not found in CityGraph for game {code}")
+            
+            player = PlayerGame(
+                game=game,
+                player_id=player_model.id,
+                name=player_model.name,
+                role_id=player_model.role_id,
+                pos=city
+            )
+            player.actions_left = player_model.actions_left
             game.players.append(player)
+            
+            player_by_id[player_model.id] = player
+
+        # Load cards
+        card_models = CardModel.query.all()
+        card_model_by_id = {m.id: m for m in card_models}
+
+        # Load deck of player cards
+        deck_of_cards_rows = DeckOfCardsModel.query.filter_by(game_id=code).all()
+    
+        if deck_of_cards_rows:
+            deck_of_cards_rows.sort(key=lambda x: (not x.in_game, x.order_index))
+
+            deck_cards = DeckCards(game)
+            
+            for row in deck_of_cards_rows:
+                card_model = card_model_by_id.get(row.card_id)
+                if card_model is None:
+                    raise ValueError(f"CardModel id={row.card_id} not found (game {code})")
+                
+                card_type = next(ct for ct in (CardType.CITY, CardType.EPIDEMIC, CardType.EVENT) if ct.name == card_model.type.name)
+                
+                card = CardGame(
+                    card_id=card_model.id,
+                    name=card_model.name,
+                    card_type=card_type,
+                    deck=deck_cards
+                )
+                
+                if row.player_id is not None:
+                    player = player_by_id[row.player_id]
+                    if player is None:
+                        raise ValueError(f"Unknown player_id={row.player_id} for card_id={row.card_id} (game {code})")
+                    
+                    card.player_owner = player
+
+                if row.in_game:
+                    deck_cards.draw_pile.append(card)
+                else:
+                    if row.player_id is not None:
+                        raise ValueError(f"Discard pile card_id={row.card_id} has player_id={row.player_id} (invalid)")
+                    deck_cards.discard_pile.append(card)
+            
+            game.deck_cards = deck_cards
+
+        # Load deck of diseases cards
+        deck_of_diseases_rows = DeckOfDiseasesModel.query.filter_by(game_id=code).all()
+        
+        if deck_of_diseases_rows:
+            deck_of_diseases_rows.sort(key=lambda r: (not r.in_game, r.order_index))
+            
+            deck_diseases = DeckDiseases(game)
+
+            for row in deck_of_diseases_rows:
+                card_model = card_model_by_id.get(row.city_id)
+                if card_model is None:
+                    raise ValueError(f"CardModel id={row.city_id} not found (game {code})")
+
+                card = CardGame(
+                    card_id=card_model.id,
+                    name=card_model.name,
+                    card_type=CardType.CITY,
+                    deck=deck_diseases
+                )
+                
+                if row.in_game:
+                    deck_diseases.draw_pile.append(card)
+                else:
+                    deck_diseases.discard_pile.append(card)
+
+
+            game.deck_diseases = deck_diseases
 
         return game
 
@@ -259,7 +358,7 @@ class GameRepository:
 
         for city in cities_db:
             color = next(c for c in ColorType if c.name == city.color.name)
-            cities.add_city(city.id, city.name, color)
+            cities.add_city(city.id, city.name, color, city.population)
 
         city_connections = CityConnectionModel.query.all()
         for connection in city_connections:

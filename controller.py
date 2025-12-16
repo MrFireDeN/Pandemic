@@ -20,6 +20,7 @@ def load_game_sessions(app):
 
         for gs in game_sessions:
             game = GameRepository.load_game(gs.code)
+            GameRepository.save_game(game)
             SESSIONS.add_session(game)
 
 
