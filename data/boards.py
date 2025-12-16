@@ -3,8 +3,6 @@
 import json
 from typing import TYPE_CHECKING
 
-from sympy.codegen.ast import continue_
-
 from data.enums import ColorType
 
 if TYPE_CHECKING:

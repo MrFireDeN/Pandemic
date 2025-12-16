@@ -31,6 +31,10 @@ def create_app():
     def player(code, name):
         return render_template("player.html", code=code, name=name)
 
+    @app.route("/actions/<code>")
+    def actions_log(code):
+        return render_template("actions_log.html", code=code)
+
 
     from controller import api
     app.register_blueprint(api, url_prefix="/api")
