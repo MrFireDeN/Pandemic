@@ -115,7 +115,8 @@ class GameRepository:
         
             player_model.role_id = player_data.role.value
             player_model.position_city_id = city_id
-            player_model.actions_left = player_data.actions_left
+            # Убеждаемся, что actions_left не отрицательный при сохранении
+            player_model.actions_left = max(0, player_data.actions_left) if player_data.actions_left is not None else 4
 
         db.session.flush()
             
@@ -191,7 +192,13 @@ class GameRepository:
             return None
 
         game = PandemicGame(code=session.code)
-        game.phase = session.status
+        # Конвертируем GameStatusDB enum в строку
+        if hasattr(session.status, 'value'):
+            game.phase = session.status.value
+        elif hasattr(session.status, 'name'):
+            game.phase = session.status.name
+        else:
+            game.phase = str(session.status)
 
         # Load the board state
         board_model = GameStateModel.query.filter_by(game_id=code).first()
@@ -257,7 +264,8 @@ class GameRepository:
                 role_id=player_model.role_id,
                 pos=city
             )
-            player.actions_left = player_model.actions_left
+            # Убеждаемся, что actions_left не отрицательный
+            player.actions_left = max(0, player_model.actions_left) if player_model.actions_left is not None else 4
             game.players.append(player)
             
             player_by_id[player_model.id] = player

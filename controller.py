@@ -80,12 +80,15 @@ def get_game(code: str) -> PandemicGame | None:
 
 def serialize_player(player):
     """Сериализация игрока для JSON"""
+    # Убеждаемся, что actions_left не отрицательный
+    actions_left = max(0, player.actions_left) if hasattr(player, 'actions_left') and player.actions_left is not None else 0
+    
     return {
         "id": player.id,
         "name": player.name,
         "role": player.role.name if hasattr(player.role, 'name') else str(player.role),
         "position": player.pos.name if player.pos else None,
-        "actions_left": player.actions_left
+        "actions_left": actions_left
     }
 
 
@@ -133,14 +136,23 @@ def serialize_game_state(game: PandemicGame):
         "is_game_over": game.board.is_game_over
     }
     
+    # Конвертируем phase в строку (может быть enum)
+    phase_str = game.phase
+    if hasattr(game.phase, 'value'):
+        phase_str = game.phase.value
+    elif hasattr(game.phase, 'name'):
+        phase_str = game.phase.name
+    else:
+        phase_str = str(game.phase)
+    
     return {
         "code": game.code,
-        "phase": game.phase,
+        "phase": phase_str,
         "difficult": game.difficult.name if hasattr(game.difficult, 'name') else str(game.difficult),
         "players": players,
         "cities": cities,
         "board": board_data,
-        "current_player": players[game.board.turn_order] if game.players else None
+        "current_player": players[game.board.turn_order] if game.players and game.board.turn_order < len(players) else None
     }
 
 
