@@ -52,6 +52,8 @@ class PlayerGame:
             return
 
         if use_card is not None and use_card.is_city():
+            use_card.use()
+            
             if use_card.name == city_from.name:
                 self.__move_by_charter_flight(city)
                 return
