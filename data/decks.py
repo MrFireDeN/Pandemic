@@ -103,7 +103,16 @@ class DeckCards:
         if not self.draw_pile:
             self.game.board.trigger_game_over()
             return None
-        return self.draw_pile.pop(0)
+        
+        # TODO: изменить логику карт в руке
+        card = self.draw_pile.pop(0)
+        self.draw_pile.append(card)
+        
+        if card.player_owner is not None:
+            self.game.board.trigger_game_over()
+            return None
+        
+        return card
     
     def discard(self, card: CardGame):
         """

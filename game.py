@@ -157,8 +157,8 @@ class PandemicGame(Subject):
         self.__save()
         return {"status": 200, "message": "Game started successfully"}
 
-    def move_player(self, player_id: int, to_city: str, use_card: CardGame | None = None):
-        player = self.__search_player(player_id)
+    def move_player(self, player_name: str, to_city: str, use_card: CardGame | None = None):
+        player = self.__search_player(player_name)
         if player is None:
             return {"status": 401, "message": "Player not found"}
 
@@ -168,13 +168,13 @@ class PandemicGame(Subject):
 
         player.move_to(city, use_card)
         
-        self.notify_observers({"event": "player_moved", "player_id": player_id, "new_city": to_city})
+        self.notify_observers({"event": "player_moved", "player_name": player_name, "new_city": to_city})
         self.__save()
         
         return {"status": 200, "message": "Player moved successfully"}
 
-    def cure_city_player(self, player_id: int, city_name: str, color: ColorType):
-        player = self.__search_player(player_id)
+    def cure_city_player(self, player_name: str, city_name: str, color: ColorType):
+        player = self.__search_player(player_name)
         if player is None:
             return {"status": 401, "message": "Player not found"}
 
@@ -184,25 +184,25 @@ class PandemicGame(Subject):
 
         player.cure_city(city, color)
         
-        self.notify_observers({"event": "city_cured", "player_id": player_id, "city": city_name, "color": color})
+        self.notify_observers({"event": "city_cured", "player_name": player_name, "city": city_name, "color": color})
         self.__save()
         
         return {"status": 200, "message": "City cured successfully"}
 
-    def use_event_player(self, player_id: int, card: CardGame):
-        player = self.__search_player(player_id)
+    def use_event_player(self, player_name: str, card: CardGame):
+        player = self.__search_player(player_name)
         if player is None:
             return {"status": 401, "message": "Player not found"}
 
         player.use_card(card)
         
-        self.notify_observers({"event": "event_used", "player_id": player_id, "card": card})
+        self.notify_observers({"event": "event_used", "player_name": player_name, "card": card})
         self.__save()
         
         return {"status": 200, "message": "Event used successfully"}
 
-    def build_research_station_player(self, player_id: int, city_name: str, card: CardGame):
-        player = self.__search_player(player_id)
+    def build_research_station_player(self, player_name: str, city_name: str, card: CardGame):
+        player = self.__search_player(player_name)
         if player is None:
             return {"status": 401, "message": "Player not found"}
 
@@ -212,33 +212,33 @@ class PandemicGame(Subject):
 
         player.build_research_station(city, card)
         
-        self.notify_observers({"event": "research_station_built", "player_id": player_id, "city": city_name})
+        self.notify_observers({"event": "research_station_built", "player_name": player_name, "city": city_name})
         self.__save()
         
         return {"status": 200, "message": "Research station built successfully"}
 
-    def trade_card_player(self, from_player_id: int, to_player_id: int, card: CardGame):
-        from_player = self.__search_player(from_player_id)
-        to_player = self.__search_player(to_player_id)
+    def trade_card_player(self, from_player_name: str, to_player_name: str, card: CardGame):
+        from_player = self.__search_player(from_player_name)
+        to_player = self.__search_player(to_player_name)
 
         if from_player is None or to_player is None:
             return {"status": 401, "message": "Player not found"}
 
         from_player.trade_card(card, to_player)
         
-        self.notify_observers({"event": "card_traded", "from_player_id": from_player_id, "to_player_id": to_player_id, "card": card})
+        self.notify_observers({"event": "card_traded", "from_player_id": from_player_name, "to_player_id": to_player_name, "card": card})
         self.__save()
         
         return {"status": 200, "message": "Card traded successfully"}
 
-    def discover_cure_player(self, player_id: int, color: ColorType, cards: list[CardGame]):
-        player = self.__search_player(player_id)
+    def discover_cure_player(self, player_name: str, color: ColorType, cards: list[CardGame]):
+        player = self.__search_player(player_name)
         if player is None:
             return {"status": 401, "message": "Player not found"}
 
         player.discover_cure(color, cards)
         
-        self.notify_observers({"event": "cure_discovered", "player_id": player_id, "color": color, "cards_used": cards})
+        self.notify_observers({"event": "cure_discovered", "player_name": player_name, "color": color, "cards_used": cards})
         self.__save()
         
         return {"status": 200, "message": "Cure discovered successfully"}
@@ -376,9 +376,9 @@ class PandemicGame(Subject):
         for observer in self._observers:
             observer.update(message)
 
-    def __search_player(self, player_id: int) -> PlayerGame | None:
+    def __search_player(self, player_name: str) -> PlayerGame | None:
         for player in self.players:
-            if player.id == player_id:
+            if player.name == player_name:
                 return player
         return None
 

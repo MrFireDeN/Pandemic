@@ -1,5 +1,7 @@
 ﻿import json
 
+from sympy.codegen.ast import continue_
+
 from eng import db
 
 from models import (
@@ -130,17 +132,41 @@ class GameRepository:
 
         player_id_by_name = {name: model.id for name, model in players_by_name.items()}
         
-        def update_deck_card(card_data: CardGame, order_index: int, in_game: bool) -> None:
-            card_id = card_id_by_name.get(card_data.name)
+        # TODO: починить костыль в epidemic
+        epidemic_card_count = game.difficult.value
+        epidemic_card_id = card_id_by_name[CardType.EPIDEMIC.name]
+
+        epidemic_card_models = DeckOfCardsModel.query.filter_by(
+            game_id=game.code,
+            card_id=epidemic_card_id
+        ).all()
+            
+        epidemic_card_index = 0
         
-            deck_card_model = card_in_deck_by_card_id.get(card_id)
-            if deck_card_model is None:
-                deck_card_model = DeckOfCardsModel(
-                    game_id=game.code,
-                    card_id=card_id,
-                )
-                db.session.add(deck_card_model)
-                card_in_deck_by_card_id[card_id] = deck_card_model
+        def update_deck_card(card_data: CardGame, order_index: int, in_game: bool) -> None:
+            nonlocal epidemic_card_index
+            
+            card_id = card_id_by_name.get(card_data.name)
+
+            deck_card_model = None
+            if card_data.is_epidemic():
+                if epidemic_card_index >= len(epidemic_card_models):
+                    m = DeckOfCardsModel(game_id=game.code, card_id=epidemic_card_id)
+                    db.session.add(m)
+                    epidemic_card_models.append(m)
+                    deck_of_cards_models.append(m)
+                    
+                deck_card_model = epidemic_card_models[epidemic_card_index]
+                epidemic_card_index += 1
+            else:
+                deck_card_model = card_in_deck_by_card_id.get(card_id)
+                if deck_card_model is None:
+                    deck_card_model = DeckOfCardsModel(
+                        game_id=game.code,
+                        card_id=card_id,
+                    )
+                    db.session.add(deck_card_model)
+                    card_in_deck_by_card_id[card_id] = deck_card_model
 
             owner = getattr(card_data, "player_owner", None)
         
