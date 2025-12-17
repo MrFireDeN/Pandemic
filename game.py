@@ -376,6 +376,12 @@ class PandemicGame(Subject):
         for observer in self._observers:
             observer.update(message)
 
+    def get_player_name_by_id(self, player_id: int) -> str:
+        for player in self.players:
+            if player.id == player_id:
+                return player.name
+        return ''
+
     def __search_player(self, player_name: str) -> PlayerGame | None:
         for player in self.players:
             if player.name == player_name:

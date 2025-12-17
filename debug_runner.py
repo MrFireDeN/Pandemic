@@ -26,17 +26,27 @@ def main() -> None:
                     break
                     
             to_city_name = card_to_use.name
+
+            print(to_city_name)
+
             player1_name = game.players[0].name
+
+            print(player1_name)
             
             print(game.move_player(player1_name, to_city_name, card_to_use))
             
-        def test_cure_city():
+        def test_cure_city(city_name: str) -> None:
             card_to_use = None
         
             player1_name = game.players[0].name
-            city_name = "Chicago"
+
+            print(player1_name)
+
+            color = game.cities.get_city_by_name(city_name).color
+
+            print(color)
     
-            print(game.cure_city_player(player1_name, city_name, ColorType.blue))
+            print(game.cure_city_player(player1_name, city_name, color))
             
         def test_turn_end():
             print(game.notify_turn_ended())
@@ -71,15 +81,22 @@ def main() -> None:
                 if card.player_owner.name is player2_name:
                     cards_to_discover.append(card)
                     
-            print(cards_to_discover)
-                    
             color = ColorType.blue
             print(color)
             
             print(game.discover_cure_player(player2_name, color, cards_to_discover))
             
         print(game.difficult.value)
-            
+
+        # test_start_game()
+        # test_move_player()
+        # test_turn_end()
+        # test_cure_city()
+        # test_trade_card_player()
+        # test_discover_cure_player()
+
+        test_trade_card_player()
+
         print(f"Loaded game: code={game.code}, phase={game.phase}, players={len(game.players)}")
         
         

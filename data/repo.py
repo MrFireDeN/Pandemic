@@ -1,7 +1,5 @@
 ﻿import json
 
-from sympy.codegen.ast import continue_
-
 from eng import db
 
 from models import (
@@ -410,7 +408,7 @@ class GameRepository:
 
         cities_db = CityModel.query.all()
 
-        card_id = 0
+        card_id = 1
         
         for city in cities_db:
             deck_cards.draw_pile.append(CardGame(card_id, city.name, CardType.CITY, deck_cards)) 

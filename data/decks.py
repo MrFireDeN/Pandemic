@@ -120,6 +120,7 @@ class DeckCards:
 
         :param card: Карта, которую нужно сбросить.
         """
+        card.player_owner = None
         self.discard_pile.append(card)
 
 

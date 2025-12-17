@@ -260,8 +260,9 @@ def move_player(code):
         
         if not player_id or not to_city:
             return jsonify({"status": "error", "message": "Missing parameters"}), 400
-        
-        result = game.move_player(int(player_id), to_city)
+
+        player_name = game.get_player_name_by_id(player_id)
+        result = game.move_player(player_name, to_city)
         
         # Всегда возвращаем состояние игры, даже при ошибке
         game_state = serialize_game_state(game)
@@ -301,8 +302,9 @@ def cure_city(code):
             color = ColorType[color_str.lower()]
         except (KeyError, AttributeError):
             return jsonify({"status": "error", "message": "Invalid color"}), 400
-        
-        result = game.cure_city_player(int(player_id), city_name, color)
+
+        player_name = game.get_player_name_by_id(player_id)
+        result = game.cure_city_player(player_name, city_name, color)
         
         # Всегда возвращаем состояние игры, даже при ошибке
         game_state = serialize_game_state(game)
@@ -345,8 +347,9 @@ def build_station(code):
                 if c.id == card_id:
                     card = c
                     break
-        
-        result = game.build_research_station_player(int(player_id), city_name, card)
+
+        player_name = game.get_player_name_by_id(player_id)
+        result = game.build_research_station_player(player_name, city_name, card)
         
         # Всегда возвращаем состояние игры, даже при ошибке
         game_state = serialize_game_state(game)
@@ -391,8 +394,10 @@ def trade_card(code):
         
         if card is None:
             return jsonify({"status": "error", "message": "Card not found"}), 404
-        
-        result = game.trade_card_player(int(from_player_id), int(to_player_id), card)
+
+        from_player_name = game.get_player_name_by_id(from_player_id)
+        to_player_name = game.get_player_name_by_id(to_player_id)
+        result = game.trade_card_player(from_player_name, to_player_name, card)
         
         # Всегда возвращаем состояние игры, даже при ошибке
         game_state = serialize_game_state(game)
@@ -441,8 +446,9 @@ def discover_cure(code):
                 if c.id == card_id:
                     cards.append(c)
                     break
-        
-        result = game.discover_cure_player(int(player_id), color, cards)
+
+        player_name = game.get_player_name_by_id(player_id)
+        result = game.discover_cure_player(player_name, color, cards)
         
         # Всегда возвращаем состояние игры, даже при ошибке
         game_state = serialize_game_state(game)
@@ -533,7 +539,8 @@ def handle_host_join(data):
         if not code:
             emit('error', {'message': 'Code is required'})
             return
-        
+
+        print(data)
         game = get_game(code)
         if game is None:
             emit('error', {'message': 'Game not found'})
@@ -552,7 +559,8 @@ def handle_player_join(data):
         code = data.get('code')
         name = data.get('name')
         role_id = data.get('role', 1)
-        
+
+        print(data)
         if not code or not name:
             emit('error', {'message': 'Code and name are required'})
             return
@@ -649,8 +657,9 @@ def handle_player_move(data):
         if game is None:
             emit('error', {'message': 'Game not found'})
             return
-        
-        result = game.move_player(int(player_id), to_city)
+
+        player_name = game.get_player_name_by_id(player_id)
+        result = game.move_player(player_name, to_city)
         
         if result.get("status") == 200:
             # Находим игрока
@@ -694,8 +703,9 @@ def handle_player_cure(data):
         except (KeyError, AttributeError):
             emit('error', {'message': 'Invalid color'})
             return
-        
-        result = game.cure_city_player(int(player_id), city_name, color)
+
+        player_name = game.get_player_name_by_id(player_id)
+        result = game.cure_city_player(player_name, city_name, color)
         
         if result.get("status") == 200:
             emit('city:cured', {
@@ -747,5 +757,6 @@ def load_game_sessions(app):
                     # Добавляем observer
                     observer = SocketObserver(session.code)
                     game.add_observer(observer)
+                    print(f"Game session {session.code} successfully loaded")
     except Exception as e:
         print(f"Error loading game sessions: {e}")
