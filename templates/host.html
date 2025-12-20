@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Host — Pandemic{% endblock %}
+{% block content %}
+    <section id="host" class="host-layout">
+        <h2>Комната: {{ code }}</h2>
+
+        <div id="status">
+            <p>Ожидание игроков...</p>
+            <ul id="player-list"></ul>
+        </div>
+
+        <div class="controls">
+            <button id="start-btn" disabled data-room="{{ code }}">Начать игру</button>
+        </div>
+    </section>
+{% endblock %}
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/host.js') }}"></script>
+{% endblock %}

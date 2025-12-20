@@ -1,0 +1,129 @@
+﻿{% extends "base.html" %}
+{% block title %}Player — Pandemic{% endblock %}
+{% block content %}
+    <section id="player">
+        <h2>Игрок: {{ name }}</h2>
+        <h3>Комната: {{ code }}</h3>
+
+        <div id="player-info">
+            <p>Оставшиеся действия: <span id="actions-left">4</span></p>
+            <p>Текущая позиция: <span id="current-position">Загрузка...</span></p>
+            <p>Роль: <span id="player-role">Загрузка...</span></p>
+        </div>
+
+        <div id="actions">
+            <h3>Действия</h3>
+            <div class="action-group">
+                <label>Переместиться в:</label>
+                <input type="text" id="target-city" placeholder="Введите название города" />
+                <button id="move-btn">Переместиться</button>
+            </div>
+            
+            <div class="action-group">
+                <label>Вылечить город:</label>
+                <input type="text" id="cure-city" placeholder="Название города" />
+                <select id="cure-color">
+                    <option value="red">Красный</option>
+                    <option value="yellow">Желтый</option>
+                    <option value="blue">Синий</option>
+                    <option value="black">Черный</option>
+                </select>
+                <button id="cure-btn">Вылечить</button>
+            </div>
+
+            <div class="action-group">
+                <button id="end-turn-btn">Завершить ход</button>
+            </div>
+        </div>
+
+        <div id="game-state">
+            <h3>Состояние игры</h3>
+            <div id="game-info">
+                <p>Фаза: <span id="game-phase">Загрузка...</span></p>
+                <p>Текущий игрок: <span id="current-player">Загрузка...</span></p>
+                <p>Индикатор заражения: <span id="infection-indicator">-</span></p>
+                <p>Индикатор вспышек: <span id="outbreak-indicator">-</span></p>
+            </div>
+        </div>
+
+        <div id="log">
+            <h3>Лог действий</h3>
+            <div id="log-content"></div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <a href="/actions/{{ code }}" target="_blank">Открыть полный лог действий</a>
+        </div>
+    </section>
+
+    <style>
+        #player {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        #player-info, #actions, #game-state, #log {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .action-group {
+            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .action-group label {
+            font-weight: bold;
+        }
+
+        .action-group input, .action-group select {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .action-group button {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .action-group button:hover {
+            background: #45a049;
+        }
+
+        #end-turn-btn {
+            background: #2196F3;
+        }
+
+        #end-turn-btn:hover {
+            background: #1976D2;
+        }
+
+        #log-content {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-left: 3px solid #4CAF50;
+            border-radius: 4px;
+        }
+    </style>
+{% endblock %}
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/player.js') }}"></script>
+{% endblock %}

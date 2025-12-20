@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Join — Pandemic{% endblock %}
+{% block content %}
+    <section id="join" class="join-layout">
+        <h2>Присоединиться к игре</h2>
+
+        <div id="form">
+            <label for="room">Код комнаты:</label>
+            <input id="room" type="text" placeholder="Напр. A1B2" />
+
+            <label for="name">Ваш никнейм:</label>
+            <input id="name" type="text" placeholder="Player" />
+
+            <label for="role">Выберите роль:</label>
+            <select id="role">
+                <option value="1">СПЕЦИАЛИСТ ПО КАРАНТИНУ</option>
+                <option value="2">ЭКСПЕРТ ПО ЧРЕЗВЫЧАЙНЫМ СИТУАЦИЯМ</option>
+                <option value="3">ДИСПЕТЧЕР</option>
+                <option value="4">УЧЁНЫЙ</option>
+                <option value="5">ВРАЧ</option>
+                <option value="6">ИССЛЕДОВАТЕЛЬ</option>
+                <option value="7">ИНЖЕНЕР</option>
+            </select>
+
+            <button id="join-btn">Подключиться</button>
+        </div>
+
+        <div id="status" style="display:none;">
+            <p id="status-text"></p>
+            <button id="ready-btn">Готов</button>
+        </div>
+    </section>
+{% endblock %}
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/join.js') }}"></script>
+{% endblock %}

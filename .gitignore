@@ -16,11 +16,17 @@ __pycache__/
 *.sqlite
 instance/
 
-# Log files
-*.log
+/cypress/videos/
+/cypress/screenshots/
 
-# Uploaded files (if applicable)
-/uploads/
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Configuration files (if they contain sensitive data)
-config.pyc
+*.tsbuildinfo

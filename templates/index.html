@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Pandemic — Добро пожаловать{% endblock %}
+{% block content %}
+    <section id="landing">
+        <h1>Pandemic (web)</h1>
+        <p>Минимальный интерфейс для проверки API и Socket.IO.</p>
+
+        <div id="menu">
+            <button id="create-host">Создать комнату (Host)</button>
+            <a href="{{ url_for('join') }}"><button>Присоединиться (Join)</button></a>
+        </div>
+
+        <div id="room-info" style="display:none;">
+            <p>Код вашей комнаты: <strong id="room-code"></strong></p>
+            <a id="host-link" href="#">Перейти к комнате</a>
+        </div>
+    </section>
+{% endblock %}
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+{% endblock %}
